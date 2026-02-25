@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+openai
+celery
+redis
+python-multipart
+python-dotenv
+requests
+pydub
