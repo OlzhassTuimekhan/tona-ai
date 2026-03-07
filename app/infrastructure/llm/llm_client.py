@@ -1,15 +1,23 @@
 import json
 import logging
-from typing import Optional, Any
+from typing import Any, Optional
 
 import openai
 
-from ..models import (
-    AnalysisResult, Speaker, Commitment, Decision,
-    ActionItem, Violation,
+from app.domain.models import (
+    ActionItem,
+    AnalysisResult,
+    Commitment,
+    Decision,
+    Speaker,
+    Violation,
 )
 
 logger = logging.getLogger(__name__)
+
+# Дефолты для OpenRouter (ID моделей меняются — см. https://openrouter.ai/models )
+_OPENROUTER_DEFAULT_MODEL = "google/gemini-2.0-flash-001"
+_OPENROUTER_DEFAULT_FAST = "google/gemini-2.0-flash-001"
 
 ANALYSIS_PROMPTS = {
     "general": """Ты — универсальный AI-аналитик аудиозаписей. Проведи полный анализ транскрипции.
@@ -168,12 +176,12 @@ class LLMAnalyzer:
         if model:
             self.model = model
         elif "openrouter" in base_url:
-            self.model = "google/gemini-2.5-flash-preview"
+            self.model = _OPENROUTER_DEFAULT_MODEL
         else:
             self.model = "gpt-4o"
 
         self.model_fast = model_fast or (
-            "google/gemini-2.5-flash-preview" if "openrouter" in base_url else "gpt-4o-mini"
+            _OPENROUTER_DEFAULT_FAST if "openrouter" in base_url else "gpt-4o-mini"
         )
 
     async def analyze(

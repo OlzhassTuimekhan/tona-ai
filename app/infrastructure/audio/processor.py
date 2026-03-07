@@ -1,6 +1,7 @@
-import tempfile
-import subprocess
+import json
 import logging
+import subprocess
+import tempfile
 from pathlib import Path
 
 from pydub import AudioSegment
@@ -20,10 +21,11 @@ class AudioProcessor:
         try:
             result = subprocess.run(
                 ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", audio_url],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True,
+                text=True,
+                timeout=60,
             )
             if result.returncode == 0:
-                import json
                 return float(json.loads(result.stdout).get("format", {}).get("duration", 0))
         except Exception:
             pass
@@ -41,12 +43,20 @@ class AudioProcessor:
 
             subprocess.run(
                 [
-                    "ffmpeg", "-y",
-                    "-ss", str(start_sec),
-                    "-i", audio_url,
-                    "-t", str(duration),
-                    "-ar", "16000", "-ac", "1",
-                    "-f", "wav",
+                    "ffmpeg",
+                    "-y",
+                    "-ss",
+                    str(start_sec),
+                    "-i",
+                    audio_url,
+                    "-t",
+                    str(duration),
+                    "-ar",
+                    "16000",
+                    "-ac",
+                    "1",
+                    "-f",
+                    "wav",
                     str(out_path),
                 ],
                 capture_output=True,

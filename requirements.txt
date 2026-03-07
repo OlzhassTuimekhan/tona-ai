@@ -9,3 +9,5 @@ python-multipart
 python-dotenv
 requests
 pydub
+python-jose[cryptography]
+bcrypt

@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
 
-RUN mkdir -p /app/temp_audio
+RUN mkdir -p /app/temp_audio /app/uploads
 
 EXPOSE 8000
 
