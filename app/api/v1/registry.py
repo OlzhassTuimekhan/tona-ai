@@ -3,7 +3,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_registry_service, require_akim
-from app.application.registry_service import RegistryService
+from app.application.registry_service import RegistryService, _enrich_commitments_deadlines, _deadline_status
+from pydantic import BaseModel, Field
+
 from app.domain.models import (
     PublishSessionBody,
     RegistryImportBody,
@@ -11,6 +13,10 @@ from app.domain.models import (
     RegistrySessionListResponse,
     RegistrySessionSummary,
 )
+
+
+class CommitmentStatusBody(BaseModel):
+    status: str = Field(pattern=r"^(fulfilled|pending)$")
 
 router = APIRouter(prefix="/registry", tags=["registry"])
 
@@ -73,6 +79,11 @@ def get_registry_session(
         raise HTTPException(status_code=404, detail="session_not_found")
     if not _org_filter(doc, user):
         raise HTTPException(status_code=403, detail="org_mismatch")
+    pl = doc.get("payload")
+    if isinstance(pl, dict):
+        raw_com = pl.get("commitments")
+        if isinstance(raw_com, list):
+            pl["commitments"] = _enrich_commitments_deadlines(raw_com)
     return doc
 
 
@@ -95,3 +106,35 @@ def publish_registry_session(
         "public_org": doc.get("public_org"),
         "published_at": doc.get("published_at"),
     }
+
+
+@router.patch("/sessions/{session_id}/commitments/{index}/status")
+def set_commitment_status(
+    session_id: str,
+    index: int,
+    body: CommitmentStatusBody,
+    user: dict[str, Any] = Depends(require_akim),
+    svc: RegistryService = Depends(get_registry_service),
+):
+    doc = svc.get_session(session_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="session_not_found")
+    if not _org_filter(doc, user):
+        raise HTTPException(status_code=403, detail="org_mismatch")
+    if body.status == "fulfilled" and user.get("role") != "admin":
+        pl = doc.get("payload") or {}
+        com = pl.get("commitments")
+        if isinstance(com, list) and 0 <= index < len(com):
+            c = com[index]
+            if isinstance(c, dict) and _deadline_status(c.get("deadline"), c.get("fulfillment_status")) == "overdue":
+                raise HTTPException(
+                    status_code=400,
+                    detail="overdue_cannot_fulfill",
+                )
+    try:
+        return svc.set_commitment_status(session_id, index, body.status, user=user)
+    except ValueError as e:
+        code = str(e)
+        if code == "commitment_index_out_of_range":
+            raise HTTPException(status_code=400, detail=code) from e
+        raise HTTPException(status_code=400, detail=code) from e

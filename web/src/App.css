@@ -1176,3 +1176,427 @@ button:disabled {
   font-size: 0.85rem;
   min-width: 140px;
 }
+
+/* ——— Hero stats bar ——— */
+.hero-stats {
+  display: flex;
+  gap: 1.2rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 1rem 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.hero-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 90px;
+}
+
+.hero-num {
+  font-size: 1.8rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.hero-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.hero-stat-alert .hero-num {
+  color: var(--error, #ef4444);
+}
+
+.hero-stat-alert .hero-label {
+  color: var(--error, #ef4444);
+}
+
+/* ——— Deadline badges ——— */
+.badge-overdue {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  font-weight: 700;
+}
+
+.badge-upcoming {
+  background: rgba(250, 204, 21, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  font-weight: 600;
+}
+
+.badge-ok-deadline {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.row-overdue {
+  background: rgba(239, 68, 68, 0.06);
+}
+
+/* ——— Overdue line on cards ——— */
+.overdue-line {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #f87171;
+  margin: 0.25rem 0 0;
+  padding: 0.2rem 0.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.overdue-summary {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f87171;
+  margin: 0 0 0.75rem;
+  padding: 0.4rem 0.75rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 8px;
+}
+
+.commitment-card-overdue {
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.commitment-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ——— Fulfilled badge ——— */
+.badge-fulfilled {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  font-weight: 700;
+}
+
+.fulfillment-tag {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  margin: 0.25rem 0;
+}
+
+.fulfillment-done {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.fulfillment-overdue {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+/* ——— Fulfill controls (akim view) ——— */
+.fulfill-controls {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.fulfill-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fulfill-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+}
+
+.fulfill-row-done {
+  background: rgba(34, 197, 94, 0.06);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.fulfill-label {
+  flex: 1;
+  font-size: 0.88rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-fulfilled {
+  background: rgba(34, 197, 94, 0.2) !important;
+  color: #4ade80 !important;
+  border: 1px solid rgba(34, 197, 94, 0.35) !important;
+}
+
+.btn-fulfilled:hover {
+  background: rgba(34, 197, 94, 0.1) !important;
+}
+
+.btn-disabled-overdue {
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.fulfill-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.fulfill-deadline {
+  display: inline-flex;
+}
+
+.fulfill-row-overdue {
+  background: rgba(239, 68, 68, 0.06);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.row-fulfilled {
+  background: rgba(34, 197, 94, 0.04);
+}
+
+.fulfillment-in-work {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+/* ——— Archive org tabs ——— */
+.archive-org-nav {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.org-tab {
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.org-tab:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.org-tab-active {
+  background: rgba(61, 143, 209, 0.15);
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+/* ——— Admin Dashboard ——— */
+.dash-panel {
+  max-width: 960px;
+}
+
+.dash-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.dash-kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 0.75rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.dash-kpi-num {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.15;
+}
+
+.dash-kpi-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dash-kpi-alert {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.dash-kpi-alert .dash-kpi-num {
+  color: #f87171;
+}
+
+.dash-kpi-good {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.dash-kpi-good .dash-kpi-num {
+  color: #4ade80;
+}
+
+/* progress bar */
+.dash-progress-section {
+  margin-bottom: 1.5rem;
+}
+
+.dash-progress-bar {
+  display: flex;
+  height: 22px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.dash-progress-fill {
+  transition: width 0.4s ease;
+}
+
+.dash-fill-green {
+  background: #4ade80;
+}
+
+.dash-fill-red {
+  background: #f87171;
+}
+
+.dash-progress-legend {
+  display: flex;
+  gap: 1.2rem;
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+}
+
+.legend-green::before,
+.legend-red::before,
+.legend-gray::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+}
+
+.legend-green::before { background: #4ade80; }
+.legend-red::before { background: #f87171; }
+.legend-gray::before { background: var(--border); }
+
+.legend-green { color: #4ade80; }
+.legend-red { color: #f87171; }
+.legend-gray { color: var(--muted); }
+
+/* org cards */
+.dash-orgs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.dash-org-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  background: var(--surface);
+  transition: border-color 0.15s;
+}
+
+.dash-org-green { border-left: 4px solid #4ade80; }
+.dash-org-yellow { border-left: 4px solid #facc15; }
+.dash-org-red { border-left: 4px solid #f87171; }
+
+.dash-org-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+  gap: 0.5rem;
+}
+
+.dash-org-header strong {
+  font-size: 0.92rem;
+}
+
+.dash-org-city {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.dash-org-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 0.6rem;
+}
+
+.dash-m-good { color: #4ade80; }
+.dash-m-bad { color: #f87171; font-weight: 600; }
+
+.dash-org-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dash-org-fill-ok {
+  background: #4ade80;
+  transition: width 0.3s ease;
+}
+
+.dash-org-fill-bad {
+  background: #f87171;
+  transition: width 0.3s ease;
+}

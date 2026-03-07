@@ -152,6 +152,14 @@ def get_available_cities(
     return {"cities": sorted(cities), "regions": sorted(regions), "orgs": sorted(orgs)}
 
 
+@router.get("/stats")
+def get_public_stats(
+    svc: RegistryService = Depends(get_registry_service),
+):
+    """Aggregate platform stats for the hero section."""
+    return svc.get_aggregate_stats()
+
+
 @router.get("/sessions/{session_id}")
 def get_public_session(
     session_id: str,

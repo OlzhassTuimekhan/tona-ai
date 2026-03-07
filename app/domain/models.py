@@ -128,6 +128,7 @@ class RegistrySessionSummary(BaseModel):
     commitments_total: int
     commitments_verified_quotes: int
     published: bool = False
+    public_org: str | None = None
 
 
 class RegistrySessionListResponse(BaseModel):
@@ -186,6 +187,7 @@ class PublicSessionSummary(BaseModel):
     observations_total: int
     observations_with_photo: int = 0
     rating: RatingInfo = Field(default_factory=lambda: RatingInfo(level="yellow", score=50))
+    deadlines_overdue: int = 0
 
 
 class PublicSessionListResponse(BaseModel):

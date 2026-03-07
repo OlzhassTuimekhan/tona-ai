@@ -171,6 +171,7 @@ export type RegistrySessionRow = {
   commitments_total: number
   commitments_verified_quotes: number
   published?: boolean
+  public_org?: string | null
 }
 
 export async function listRegistrySessions(): Promise<RegistrySessionRow[]> {
@@ -266,6 +267,14 @@ export type PublicSessionRow = {
   observations_total: number
   observations_with_photo: number
   rating: RatingInfo
+  deadlines_overdue: number
+}
+
+export type PlatformStats = {
+  sessions: number
+  commitments: number
+  observations: number
+  overdue: number
 }
 
 export type PublicFilters = {
@@ -301,6 +310,8 @@ export type PublicSessionView = {
   observations: Record<string, unknown>[]
   rating?: RatingInfo
   normalized_transcript?: string
+  deadlines_overdue?: number
+  deadlines_upcoming?: number
 }
 
 export async function getPublicSession(
@@ -316,6 +327,12 @@ export async function getPublicSession(
 export async function fetchCities(): Promise<{ cities: string[]; regions: string[]; orgs: string[] }> {
   const r = await fetch(`${API}/public/cities`)
   if (!r.ok) throw new Error(`cities: ${r.status}`)
+  return r.json()
+}
+
+export async function fetchStats(): Promise<PlatformStats> {
+  const r = await fetch(`${API}/public/stats`)
+  if (!r.ok) throw new Error(`stats: ${r.status}`)
   return r.json()
 }
 
@@ -379,6 +396,68 @@ export async function getRegistrySession(
     { headers: authHeaders() },
   )
   if (!r.ok) throw new Error(`session: ${r.status}`)
+  return r.json()
+}
+
+export async function setCommitmentStatus(
+  sessionId: string,
+  index: number,
+  status: 'fulfilled' | 'pending',
+): Promise<{ fulfillment_status: string; fulfilled_at?: string; fulfilled_by?: string }> {
+  const r = await fetch(
+    `${API}/registry/sessions/${encodeURIComponent(sessionId)}/commitments/${index}/status`,
+    {
+      method: 'PATCH',
+      headers: jsonAuth(),
+      body: JSON.stringify({ status }),
+    },
+  )
+  if (!r.ok) {
+    const t = await r.text()
+    throw new Error(t || `commitmentStatus: ${r.status}`)
+  }
+  return r.json()
+}
+
+export type DashboardOrgRow = {
+  org: string
+  city?: string | null
+  sessions: number
+  commitments: number
+  fulfilled: number
+  overdue: number
+  observations: number
+  fulfillment_pct: number
+  overdue_pct: number
+}
+
+export type DashboardOverdueItem = {
+  session_id: string
+  session_title: string
+  org: string
+  index: number
+  description: string
+  deadline?: string | null
+  responsible?: string | null
+}
+
+export type AdminDashboard = {
+  totals: {
+    sessions: number
+    published: number
+    commitments: number
+    fulfilled: number
+    overdue: number
+    observations: number
+    akims: number
+  }
+  orgs: DashboardOrgRow[]
+  overdue_items: DashboardOverdueItem[]
+}
+
+export async function fetchAdminDashboard(): Promise<AdminDashboard> {
+  const r = await fetch(`${API}/admin/dashboard`, { headers: authHeaders() })
+  if (!r.ok) throw new Error(`dashboard: ${r.status}`)
   return r.json()
 }
 

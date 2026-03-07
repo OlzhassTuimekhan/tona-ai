@@ -9,6 +9,7 @@ import {
   fetchCities,
   fetchOrgRatings,
   fetchProfiles,
+  fetchStats,
   getJob,
   getMe,
   getPublicSession,
@@ -19,10 +20,14 @@ import {
   listUsers,
   login,
   publishRegistrySession,
+  setCommitmentStatus,
   setToken,
+  fetchAdminDashboard,
+  type AdminDashboard,
   type AuthUser,
   type JobPoll,
   type OrgRating,
+  type PlatformStats,
   type Profile,
   type PublicSessionRow,
   type PublicSessionView,
@@ -30,6 +35,43 @@ import {
   type RegistrySessionDoc,
   type RegistrySessionRow,
 } from './api/client'
+
+function DeadlineBadge({ status, deadline }: { status?: string; deadline?: string }) {
+  const label = String(deadline ?? '').trim()
+  if (status === 'fulfilled') {
+    return (
+      <span className="badge badge-fulfilled" title="Выполнено">
+        {label ? `${label} — выполнено` : 'Выполнено'}
+      </span>
+    )
+  }
+  if (!label && (!status || status === 'no_deadline')) {
+    return <span className="badge muted-badge">без срока</span>
+  }
+  if (status === 'overdue') {
+    return <span className="badge badge-overdue" title="Срок истёк">{label || 'Просрочено'}</span>
+  }
+  if (status === 'upcoming') {
+    return <span className="badge badge-upcoming" title="Скоро дедлайн">{label || 'Скоро'}</span>
+  }
+  if (status === 'ok' || label) {
+    return <span className="badge badge-ok-deadline">{label}</span>
+  }
+  return <span className="badge muted-badge">без срока</span>
+}
+
+function FulfillmentBadge({ fulfillment, deadlineStatus }: { fulfillment?: string; deadlineStatus?: string }) {
+  if (fulfillment === 'fulfilled') {
+    return <span className="fulfillment-tag fulfillment-done">Аким: выполнено</span>
+  }
+  if (deadlineStatus === 'overdue') {
+    return <span className="fulfillment-tag fulfillment-overdue">Просрочено</span>
+  }
+  if (fulfillment === 'pending' && (deadlineStatus === 'ok' || deadlineStatus === 'upcoming')) {
+    return <span className="fulfillment-tag fulfillment-in-work">В работе</span>
+  }
+  return null
+}
 
 function CommitmentsEvidenceTable({
   commitments,
@@ -46,32 +88,42 @@ function CommitmentsEvidenceTable({
       <thead>
         <tr>
           <th>Суть</th>
-          <th>Срок / ответственный</th>
+          <th>Ответственный</th>
+          <th>Срок</th>
           <th>Цитата</th>
           <th>Сверка</th>
         </tr>
       </thead>
       <tbody>
-        {commitments.map((c, i) => (
-          <tr key={i}>
-            <td>{String(c.description ?? '—')}</td>
-            <td className="small">
-              {[c.deadline, c.responsible].filter(Boolean).join(' · ') || '—'}
-            </td>
-            <td className="quote-cell">{String(c.quote ?? '—')}</td>
-            <td>
-              {c.evidence_note === 'нет_цитаты' ? (
-                <span className="badge muted-badge">нет цитаты</span>
-              ) : c.evidence_verified === true ? (
-                <span className="badge ok">в тексте</span>
-              ) : c.evidence_verified === false ? (
-                <span className="badge warn">не найдено</span>
-              ) : (
-                <span className="badge">—</span>
-              )}
-            </td>
-          </tr>
-        ))}
+        {commitments.map((c, i) => {
+          const ds = String(c.deadline_status ?? '')
+          const isOverdue = ds === 'overdue'
+          const isFulfilled = ds === 'fulfilled' || String(c.fulfillment_status ?? '') === 'fulfilled'
+          return (
+            <tr key={i} className={isOverdue ? 'row-overdue' : isFulfilled ? 'row-fulfilled' : ''}>
+              <td>{String(c.description ?? '—')}</td>
+              <td className="small">{String(c.responsible ?? '—')}</td>
+              <td>
+                <DeadlineBadge
+                  status={ds || undefined}
+                  deadline={String(c.deadline ?? '')}
+                />
+              </td>
+              <td className="quote-cell">{String(c.quote ?? '—')}</td>
+              <td>
+                {c.evidence_note === 'нет_цитаты' ? (
+                  <span className="badge muted-badge">нет цитаты</span>
+                ) : c.evidence_verified === true ? (
+                  <span className="badge ok">в тексте</span>
+                ) : c.evidence_verified === false ? (
+                  <span className="badge warn">не найдено</span>
+                ) : (
+                  <span className="badge">—</span>
+                )}
+              </td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   )
@@ -159,8 +211,11 @@ export default function App() {
   const [job, setJob] = useState<JobPoll | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [dashboardData, setDashboardData] = useState<AdminDashboard | null>(null)
+  const [dashBusy, setDashBusy] = useState(false)
+
   const [page, setPage] = useState<
-    'login' | 'analyze' | 'registry' | 'detail' | 'public' | 'publicDetail' | 'ratings' | 'admin'
+    'login' | 'analyze' | 'registry' | 'detail' | 'public' | 'publicDetail' | 'ratings' | 'admin' | 'dashboard'
   >('public')
   const [ratingFilter, setRatingFilter] = useState<'all' | 'red' | 'yellow' | 'green'>('all')
   const [orgRatings, setOrgRatings] = useState<OrgRating[]>([])
@@ -169,11 +224,13 @@ export default function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [regErr, setRegErr] = useState<string | null>(null)
   const [regBusy, setRegBusy] = useState(false)
+  const [archiveOrg, setArchiveOrg] = useState('')
 
   const [publicRows, setPublicRows] = useState<PublicSessionRow[]>([])
   const [publicDoc, setPublicDoc] = useState<PublicSessionView | null>(null)
   const [selectedPublicId, setSelectedPublicId] = useState<string | null>(null)
   const [publicErr, setPublicErr] = useState<string | null>(null)
+  const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null)
   const [publicBusy, setPublicBusy] = useState(false)
 
   const userRole = authUser?.role ?? null
@@ -219,7 +276,7 @@ export default function App() {
       setAuthUser(res.user)
       setLoginUsername('')
       setLoginPassword('')
-      setPage(res.user.role === 'admin' ? 'admin' : 'analyze')
+      setPage(res.user.role === 'admin' ? 'dashboard' : 'analyze')
     } catch (e) {
       setLoginErr(String(e))
     } finally {
@@ -305,6 +362,7 @@ export default function App() {
       loadPublic()
       loadRatings()
       fetchCities().then((c) => setAvailableCities(c.cities)).catch(() => {})
+      fetchStats().then(setPlatformStats).catch(() => {})
     }
   }, [page, loadPublic, loadRatings])
 
@@ -315,6 +373,17 @@ export default function App() {
   useEffect(() => {
     if (page === 'admin' && isAdmin) loadAdminUsers()
   }, [page, isAdmin, loadAdminUsers])
+
+  const loadDashboard = useCallback(async () => {
+    setDashBusy(true)
+    try { setDashboardData(await fetchAdminDashboard()) }
+    catch { setDashboardData(null) }
+    finally { setDashBusy(false) }
+  }, [])
+
+  useEffect(() => {
+    if (page === 'dashboard' && isAdmin) void loadDashboard()
+  }, [page, isAdmin, loadDashboard])
 
   const filteredPublicRows = ratingFilter === 'all'
     ? publicRows
@@ -735,6 +804,19 @@ export default function App() {
             : 'Аудио заседания → поручения с цитатами из записи.'}
         </p>
         <nav className="main-nav">
+          {isAdmin && (
+            <button
+              type="button"
+              className={page === 'dashboard' ? 'nav-btn active' : 'nav-btn'}
+              onClick={() => {
+                setPage('dashboard')
+                setRegErr(null)
+                setPublicErr(null)
+              }}
+            >
+              Дашборд
+            </button>
+          )}
           {isAkim && (
             <button
               type="button"
@@ -880,77 +962,260 @@ export default function App() {
         </section>
       )}
 
-      {page === 'registry' && (
-        <section className="panel">
-          {regErr && (
-            <p className="error panel-inline-err">{regErr}</p>
-          )}
+      {page === 'dashboard' && isAdmin && (
+        <section className="panel dash-panel">
           <div className="row space-between">
-            <h2 className="panel-title">Сохранённые карточки</h2>
-            <button
-              type="button"
-              disabled={regBusy}
-              onClick={() => loadRegistry()}
-            >
+            <h2 className="panel-title">Дашборд администратора</h2>
+            <button type="button" className="btn-secondary" disabled={dashBusy} onClick={() => void loadDashboard()}>
               Обновить
             </button>
           </div>
-          {regBusy && sessions.length === 0 ? (
-            <p className="muted">Загрузка…</p>
-          ) : sessions.length === 0 ? (
-            <p className="muted">
-              Пока пусто. Завершите разбор на вкладке «Запись» и нажмите «В
-              реестр».
-            </p>
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Когда</th>
-                  <th>Заголовок</th>
-                  <th>Профиль</th>
-                  <th>Поручения (✓ цитата)</th>
-                  <th>У всех на виду</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((s) => (
-                  <tr key={s.id}>
-                    <td className="nowrap">
-                      {new Date(s.created_at).toLocaleString()}
-                    </td>
-                    <td>{s.title}</td>
-                    <td>{s.analysis_type}</td>
-                    <td>
-                      {s.commitments_verified_quotes}/{s.commitments_total}
-                    </td>
-                    <td>
-                      {s.published ? (
-                        <span className="badge ok">да</span>
-                      ) : (
-                        <span className="badge muted-badge">нет</span>
-                      )}
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn-link"
-                        onClick={() => {
-                          setSelectedSessionId(s.id)
-                          setPage('detail')
-                        }}
-                      >
-                        Открыть
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {!dashboardData && dashBusy && <p className="muted">Загрузка…</p>}
+          {dashboardData && (
+            <>
+              <div className="dash-kpi-row">
+                <div className="dash-kpi">
+                  <span className="dash-kpi-num">{dashboardData.totals.published}</span>
+                  <span className="dash-kpi-label">Опубликовано</span>
+                </div>
+                <div className="dash-kpi">
+                  <span className="dash-kpi-num">{dashboardData.totals.sessions}</span>
+                  <span className="dash-kpi-label">Всего сессий</span>
+                </div>
+                <div className="dash-kpi">
+                  <span className="dash-kpi-num">{dashboardData.totals.commitments}</span>
+                  <span className="dash-kpi-label">Поручений</span>
+                </div>
+                <div className="dash-kpi dash-kpi-good">
+                  <span className="dash-kpi-num">{dashboardData.totals.fulfilled}</span>
+                  <span className="dash-kpi-label">Выполнено</span>
+                </div>
+                <div className={`dash-kpi ${dashboardData.totals.overdue > 0 ? 'dash-kpi-alert' : ''}`}>
+                  <span className="dash-kpi-num">{dashboardData.totals.overdue}</span>
+                  <span className="dash-kpi-label">Просрочено</span>
+                </div>
+                <div className="dash-kpi">
+                  <span className="dash-kpi-num">{dashboardData.totals.observations}</span>
+                  <span className="dash-kpi-label">Отзывов</span>
+                </div>
+                <div className="dash-kpi">
+                  <span className="dash-kpi-num">{dashboardData.totals.akims}</span>
+                  <span className="dash-kpi-label">Акимов</span>
+                </div>
+              </div>
+
+              {dashboardData.totals.commitments > 0 && (
+                <div className="dash-progress-section">
+                  <h3 className="subh">Общий прогресс поручений</h3>
+                  <div className="dash-progress-bar">
+                    <div
+                      className="dash-progress-fill dash-fill-green"
+                      style={{ width: `${Math.round(dashboardData.totals.fulfilled / dashboardData.totals.commitments * 100)}%` }}
+                      title={`Выполнено: ${dashboardData.totals.fulfilled}`}
+                    />
+                    <div
+                      className="dash-progress-fill dash-fill-red"
+                      style={{ width: `${Math.round(dashboardData.totals.overdue / dashboardData.totals.commitments * 100)}%` }}
+                      title={`Просрочено: ${dashboardData.totals.overdue}`}
+                    />
+                  </div>
+                  <p className="dash-progress-legend">
+                    <span className="legend-green">Выполнено {Math.round(dashboardData.totals.fulfilled / dashboardData.totals.commitments * 100)}%</span>
+                    <span className="legend-red">Просрочено {Math.round(dashboardData.totals.overdue / dashboardData.totals.commitments * 100)}%</span>
+                    <span className="legend-gray">В работе {Math.round((dashboardData.totals.commitments - dashboardData.totals.fulfilled - dashboardData.totals.overdue) / dashboardData.totals.commitments * 100)}%</span>
+                  </p>
+                </div>
+              )}
+
+              {dashboardData.orgs.length > 0 && (
+                <>
+                  <h3 className="subh">Организации</h3>
+                  <div className="dash-orgs-grid">
+                    {dashboardData.orgs.map((o) => {
+                      const level = o.overdue > 0 ? (o.overdue_pct > 30 ? 'red' : 'yellow') : 'green'
+                      return (
+                        <div key={o.org} className={`dash-org-card dash-org-${level}`}>
+                          <div className="dash-org-header">
+                            <strong>{o.org}</strong>
+                            {o.city && <span className="dash-org-city">{o.city}</span>}
+                          </div>
+                          <div className="dash-org-metrics">
+                            <span>Сессий: {o.sessions}</span>
+                            <span>Поручений: {o.commitments}</span>
+                            <span className="dash-m-good">Выполнено: {o.fulfilled} ({o.fulfillment_pct}%)</span>
+                            {o.overdue > 0 && <span className="dash-m-bad">Просрочено: {o.overdue} ({o.overdue_pct}%)</span>}
+                            <span>Отзывов: {o.observations}</span>
+                          </div>
+                          <div className="dash-org-bar">
+                            <div className="dash-org-fill-ok" style={{ width: `${o.fulfillment_pct}%` }} />
+                            <div className="dash-org-fill-bad" style={{ width: `${o.overdue_pct}%` }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+
+              {dashboardData.overdue_items.length > 0 && (
+                <>
+                  <h3 className="subh">Просроченные поручения</h3>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Организация</th>
+                        <th>Сессия</th>
+                        <th>Поручение</th>
+                        <th>Ответственный</th>
+                        <th>Срок</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dashboardData.overdue_items.map((item, i) => (
+                        <tr key={i} className="row-overdue">
+                          <td className="small">{item.org}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn-link"
+                              onClick={() => {
+                                setSelectedSessionId(item.session_id)
+                                setPage('detail')
+                              }}
+                            >
+                              {item.session_title || item.session_id.slice(0, 8)}
+                            </button>
+                          </td>
+                          <td>{item.description}</td>
+                          <td className="small">{item.responsible || '—'}</td>
+                          <td className="small nowrap">{item.deadline || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
+            </>
           )}
         </section>
       )}
+
+      {page === 'registry' && (() => {
+        const orgGroups: Record<string, typeof sessions> = {}
+        if (isAdmin) {
+          for (const s of sessions) {
+            const key = s.public_org || 'Без организации'
+            ;(orgGroups[key] ??= []).push(s)
+          }
+        }
+        const orgNames = Object.keys(orgGroups).sort((a, b) =>
+          a === 'Без организации' ? 1 : b === 'Без организации' ? -1 : a.localeCompare(b)
+        )
+        const [archiveOrgFilter, setArchiveOrgFilter] = [archiveOrg, setArchiveOrg]
+        const visibleSessions = isAdmin && archiveOrgFilter
+          ? sessions.filter((s) => (s.public_org || 'Без организации') === archiveOrgFilter)
+          : sessions
+
+        return (
+          <section className="panel">
+            {regErr && (
+              <p className="error panel-inline-err">{regErr}</p>
+            )}
+            <div className="row space-between">
+              <h2 className="panel-title">Сохранённые карточки</h2>
+              <button
+                type="button"
+                disabled={regBusy}
+                onClick={() => loadRegistry()}
+              >
+                Обновить
+              </button>
+            </div>
+
+            {isAdmin && orgNames.length > 1 && (
+              <div className="archive-org-nav">
+                <button
+                  type="button"
+                  className={!archiveOrgFilter ? 'org-tab org-tab-active' : 'org-tab'}
+                  onClick={() => setArchiveOrgFilter('')}
+                >
+                  Все ({sessions.length})
+                </button>
+                {orgNames.map((org) => (
+                  <button
+                    key={org}
+                    type="button"
+                    className={archiveOrgFilter === org ? 'org-tab org-tab-active' : 'org-tab'}
+                    onClick={() => setArchiveOrgFilter(org)}
+                  >
+                    {org} ({orgGroups[org].length})
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {regBusy && sessions.length === 0 ? (
+              <p className="muted">Загрузка…</p>
+            ) : visibleSessions.length === 0 ? (
+              <p className="muted">
+                {archiveOrgFilter
+                  ? `Нет карточек для «${archiveOrgFilter}».`
+                  : 'Пока пусто. Завершите разбор на вкладке «Запись» и нажмите «В реестр».'}
+              </p>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Дата</th>
+                    <th>Заголовок</th>
+                    {isAdmin && !archiveOrgFilter && <th>Организация</th>}
+                    <th>Профиль</th>
+                    <th>Поручения (✓ цитата)</th>
+                    <th>Опубликовано</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleSessions.map((s) => (
+                    <tr key={s.id}>
+                      <td className="nowrap">
+                        {new Date(s.created_at).toLocaleDateString()}
+                      </td>
+                      <td>{s.title}</td>
+                      {isAdmin && !archiveOrgFilter && (
+                        <td className="small">{s.public_org || '—'}</td>
+                      )}
+                      <td>{s.analysis_type}</td>
+                      <td>
+                        {s.commitments_verified_quotes}/{s.commitments_total}
+                      </td>
+                      <td>
+                        {s.published ? (
+                          <span className="badge ok">да</span>
+                        ) : (
+                          <span className="badge muted-badge">нет</span>
+                        )}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn-link"
+                          onClick={() => {
+                            setSelectedSessionId(s.id)
+                            setPage('detail')
+                          }}
+                        >
+                          Открыть
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        )
+      })()}
 
       {page === 'detail' && (
         <section className="panel">
@@ -976,8 +1241,8 @@ export default function App() {
             <>
               <h2 className="panel-title">{sessionDoc.title}</h2>
               <p className="meta">
-                <code>{sessionDoc.id}</code> · задача{' '}
-                <code>{sessionDoc.task_id}</code> · {sessionDoc.analysis_type}
+                {new Date(sessionDoc.created_at).toLocaleDateString()} · {sessionDoc.analysis_type}
+                {sessionDoc.public_org && ` · ${sessionDoc.public_org}`}
               </p>
               <p className="summary-text">
                 {(payload?.summary as string) || '—'}
@@ -987,6 +1252,71 @@ export default function App() {
                 commitments={commitments}
                 emptyLabel="Нет блока commitments."
               />
+              {commitments.length > 0 && (
+                <div className="fulfill-controls">
+                  <h3 className="subh">Статус выполнения</h3>
+                  <div className="fulfill-grid">
+                    {commitments.map((c, i) => {
+                      const fs = String(c.fulfillment_status ?? 'pending')
+                      const ds = String(c.deadline_status ?? '')
+                      const isFulfilled = fs === 'fulfilled'
+                      const isOverdue = ds === 'overdue'
+                      const canFulfill = isAdmin || !isOverdue
+                      const deadlineText = String(c.deadline ?? '').trim()
+                      return (
+                        <div key={i} className={`fulfill-row ${isFulfilled ? 'fulfill-row-done' : isOverdue ? 'fulfill-row-overdue' : ''}`}>
+                          <div className="fulfill-info">
+                            <span className="fulfill-label">
+                              <strong>#{i + 1}</strong> {truncateText(String(c.description ?? ''), 55)}
+                            </span>
+                            {(deadlineText || ds) && (
+                              <span className="fulfill-deadline">
+                                <DeadlineBadge status={ds || undefined} deadline={deadlineText} />
+                              </span>
+                            )}
+                          </div>
+                          {isFulfilled ? (
+                            <button
+                              type="button"
+                              className="btn-sm btn-fulfilled"
+                              disabled={regBusy}
+                              onClick={() => {
+                                if (!selectedSessionId) return
+                                setRegBusy(true)
+                                setRegErr(null)
+                                setCommitmentStatus(selectedSessionId, i, 'pending')
+                                  .then(() => getRegistrySession(selectedSessionId).then(setSessionDoc))
+                                  .catch((e) => setRegErr(String(e)))
+                                  .finally(() => setRegBusy(false))
+                              }}
+                            >
+                              Выполнено
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className={isOverdue && !isAdmin ? 'btn-sm btn-disabled-overdue' : 'btn-sm btn-secondary'}
+                              disabled={regBusy || (!canFulfill)}
+                              title={!canFulfill ? 'Просроченное поручение может отметить только админ' : ''}
+                              onClick={() => {
+                                if (!selectedSessionId || !canFulfill) return
+                                setRegBusy(true)
+                                setRegErr(null)
+                                setCommitmentStatus(selectedSessionId, i, 'fulfilled')
+                                  .then(() => getRegistrySession(selectedSessionId).then(setSessionDoc))
+                                  .catch((e) => setRegErr(String(e)))
+                                  .finally(() => setRegBusy(false))
+                              }}
+                            >
+                              {isOverdue && !isAdmin ? 'Просрочено' : 'Отметить выполненным'}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
               <h3 className="subh">Публикация для горожан</h3>
               <div className="publish-box">
                 <label className="field check-row">
@@ -1029,6 +1359,28 @@ export default function App() {
 
       {page === 'public' && (
         <section className="panel panel-citizen">
+          {platformStats && (
+            <div className="hero-stats">
+              <div className="hero-stat">
+                <span className="hero-num">{platformStats.sessions}</span>
+                <span className="hero-label">сессий обработано</span>
+              </div>
+              <div className="hero-stat">
+                <span className="hero-num">{platformStats.commitments}</span>
+                <span className="hero-label">поручений извлечено</span>
+              </div>
+              <div className="hero-stat">
+                <span className="hero-num">{platformStats.observations}</span>
+                <span className="hero-label">отзывов граждан</span>
+              </div>
+              {platformStats.overdue > 0 && (
+                <div className="hero-stat hero-stat-alert">
+                  <span className="hero-num">{platformStats.overdue}</span>
+                  <span className="hero-label">просрочено</span>
+                </div>
+              )}
+            </div>
+          )}
           {publicErr && (
             <p className="error panel-inline-err">{publicErr}</p>
           )}
@@ -1115,6 +1467,11 @@ export default function App() {
                       ? ` · с фото: ${s.observations_with_photo}`
                       : ''}
                   </p>
+                  {s.deadlines_overdue > 0 && (
+                    <p className="overdue-line">
+                      {s.deadlines_overdue} {s.deadlines_overdue === 1 ? 'поручение просрочено' : 'поручений просрочено'}
+                    </p>
+                  )}
                   <button
                     type="button"
                     className="btn-block"
@@ -1169,6 +1526,11 @@ export default function App() {
                 </p>
               </details>
               <h3 className="subh subh-plain">Поручения по отдельности</h3>
+              {(publicDoc.deadlines_overdue ?? 0) > 0 && (
+                <p className="overdue-summary">
+                  {publicDoc.deadlines_overdue} из {publicCommitments.length} поручений просрочено
+                </p>
+              )}
               {publicCommitments.length === 0 ? (
                 <p className="muted">
                   В этой записи нет разбивки на пункты — отзыв будет только «ко
@@ -1179,23 +1541,31 @@ export default function App() {
                   {publicCommitments.map((c, i) => (
                     <article
                       key={i}
-                      className={
-                        obsCommitTarget === i
-                          ? 'commitment-card commitment-card-selected'
-                          : 'commitment-card'
-                      }
+                      className={[
+                        'commitment-card',
+                        obsCommitTarget === i ? 'commitment-card-selected' : '',
+                        c.deadline_status === 'overdue' ? 'commitment-card-overdue' : '',
+                      ].filter(Boolean).join(' ')}
                       id={`commit-${i}`}
                     >
                       <div className="commitment-card-head">
                         <span className="commitment-num">Пункт {i + 1}</span>
+                        {typeof c.deadline_status === 'string' && c.deadline_status !== 'no_deadline' && (
+                          <DeadlineBadge
+                            status={c.deadline_status}
+                            deadline={String(c.deadline ?? '')}
+                          />
+                        )}
                       </div>
                       <p className="commitment-body">
                         {String(c.description ?? '—')}
                       </p>
+                      <FulfillmentBadge
+                        fulfillment={String(c.fulfillment_status ?? 'pending')}
+                        deadlineStatus={String(c.deadline_status ?? '')}
+                      />
                       <p className="commitment-meta small">
-                        {[c.deadline, c.responsible]
-                          .filter(Boolean)
-                          .join(' · ') || '—'}
+                        {String(c.responsible ?? '—')}
                       </p>
                       <button
                         type="button"

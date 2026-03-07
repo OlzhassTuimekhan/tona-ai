@@ -1,11 +1,91 @@
+import re
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 
 from app.application.analysis_service import AnalysisService
 from app.application.evidence import enrich_extracted_items
 from app.domain.models import PublicObservationBody, PublishSessionBody
 from app.infrastructure.persistence.redis_registry import RedisRegistry
+
+_MONTHS_RU = {
+    "январ": 1, "феврал": 2, "март": 3, "марта": 3,
+    "апрел": 4, "ма": 5, "мая": 5, "июн": 6, "июл": 7,
+    "август": 8, "сентябр": 9, "октябр": 10, "ноябр": 11, "декабр": 12,
+}
+
+_RE_DMY = re.compile(r"(\d{1,2})[./\-](\d{1,2})[./\-](\d{4})")
+_RE_TEXT = re.compile(
+    r"(\d{1,2})\s+"
+    r"(январ\w*|феврал\w*|марта?|апрел\w*|ма[яй]|июн\w*|июл\w*|август\w*|сентябр\w*|октябр\w*|ноябр\w*|декабр\w*)"
+    r"(?:\s+(\d{4}))?",
+    re.IGNORECASE,
+)
+
+
+def _parse_deadline_date(raw: str | None) -> date | None:
+    """Best-effort parse of free-form deadline string into a date."""
+    if not raw or not raw.strip():
+        return None
+    s = raw.strip()
+    m = _RE_DMY.search(s)
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return date(y, mo, d)
+        except ValueError:
+            pass
+    m = _RE_TEXT.search(s)
+    if m:
+        day = int(m.group(1))
+        month_key = m.group(2).lower()[:4]
+        month = next((v for k, v in _MONTHS_RU.items() if month_key.startswith(k[:3])), None)
+        year = int(m.group(3)) if m.group(3) else date.today().year
+        if month:
+            try:
+                return date(year, month, day)
+            except ValueError:
+                pass
+    return None
+
+
+def _deadline_status(raw: str | None, fulfillment: str | None = None) -> str:
+    """Return 'fulfilled' | 'overdue' | 'upcoming' | 'ok' | 'no_deadline'.
+
+    If the commitment is already marked fulfilled, always return 'fulfilled'.
+    """
+    if fulfillment == "fulfilled":
+        return "fulfilled"
+    parsed = _parse_deadline_date(raw)
+    if parsed is None:
+        return "no_deadline"
+    today = date.today()
+    if parsed < today:
+        return "overdue"
+    delta = (parsed - today).days
+    if delta <= 7:
+        return "upcoming"
+    return "ok"
+
+
+def _enrich_commitments_deadlines(commitments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Add deadline_status and deadline_date fields to each commitment."""
+    out = []
+    for c in commitments:
+        if not isinstance(c, dict):
+            out.append(c)
+            continue
+        raw = c.get("deadline")
+        fulfillment = c.get("fulfillment_status")
+        status = _deadline_status(raw, fulfillment)
+        parsed = _parse_deadline_date(raw)
+        out.append({
+            **c,
+            "deadline_status": status,
+            "deadline_date": parsed.isoformat() if parsed else None,
+            "fulfillment_status": fulfillment or "pending",
+        })
+    return out
 
 
 def _title_from_payload(payload: dict[str, Any]) -> str:
@@ -35,16 +115,16 @@ def _sort_observations(obs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(obs, key=lambda o: (not o.get("has_photo", False), o.get("created_at", "")))
 
 
-def calculate_rating(observations: list[dict[str, Any]]) -> dict[str, Any]:
-    """Calculate org rating from observations.
+def calculate_rating(
+    observations: list[dict[str, Any]],
+    commitments: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Calculate org rating from observations + commitment fulfillment.
 
     Returns {"level": "green"|"yellow"|"red", "score": 0-100,
-             "total": N, "positive": N, "negative": N, "neutral": N}.
+             "total": N, "positive": N, "negative": N, "neutral": N,
+             "overdue_penalty": N, "fulfilled_bonus": N}.
     """
-    if not observations:
-        return {"level": "yellow", "score": 50, "total": 0,
-                "positive": 0, "negative": 0, "neutral": 0}
-
     positive = sum(1 for o in observations if o.get("observation_type") == "work_done")
     negative = sum(1 for o in observations if o.get("observation_type") == "dispute")
     neutral = sum(1 for o in observations if o.get("observation_type") == "was_there")
@@ -61,13 +141,29 @@ def calculate_rating(observations: list[dict[str, Any]]) -> dict[str, Any]:
     )
     weighted_total = total + photo_bonus * 0.5
 
-    if weighted_total == 0:
+    overdue_penalty = 0
+    fulfilled_bonus = 0
+    if commitments:
+        for c in commitments:
+            if not isinstance(c, dict):
+                continue
+            fs = c.get("fulfillment_status")
+            ds = _deadline_status(c.get("deadline"), fs)
+            if ds == "overdue":
+                overdue_penalty += 1
+            elif fs == "fulfilled":
+                fulfilled_bonus += 1
+
+    if weighted_total == 0 and overdue_penalty == 0 and fulfilled_bonus == 0:
         score = 50
     else:
-        score = int(((weighted_positive - weighted_negative) / weighted_total + 1) * 50)
+        base = weighted_total or 1
+        raw = ((weighted_positive + fulfilled_bonus * 0.3 - weighted_negative - overdue_penalty * 0.5) / base + 1) * 50
+        score = int(raw)
     score = max(0, min(100, score))
 
-    if total < 3:
+    has_data = total >= 3 or overdue_penalty > 0 or fulfilled_bonus > 0
+    if not has_data:
         level = "yellow"
     elif score >= 65:
         level = "green"
@@ -83,15 +179,22 @@ def calculate_rating(observations: list[dict[str, Any]]) -> dict[str, Any]:
         "positive": positive,
         "negative": negative,
         "neutral": neutral,
+        "overdue_penalty": overdue_penalty,
+        "fulfilled_bonus": fulfilled_bonus,
     }
 
 
 def build_public_view(doc: dict[str, Any]) -> dict[str, Any]:
     pl = doc.get("payload") or {}
     commitments = pl.get("commitments") if isinstance(pl.get("commitments"), list) else []
+    enriched_commitments = _enrich_commitments_deadlines(commitments)
     obs = doc.get("observations") or []
     sorted_obs = _sort_observations(obs)
-    rating = calculate_rating(obs)
+    rating = calculate_rating(obs, commitments)
+
+    overdue = sum(1 for c in enriched_commitments if isinstance(c, dict) and c.get("deadline_status") == "overdue")
+    upcoming = sum(1 for c in enriched_commitments if isinstance(c, dict) and c.get("deadline_status") == "upcoming")
+
     return {
         "id": doc["id"],
         "title": doc.get("title"),
@@ -103,10 +206,12 @@ def build_public_view(doc: dict[str, Any]) -> dict[str, Any]:
         "summary": pl.get("summary"),
         "duration_seconds": pl.get("duration_seconds"),
         "language_detected": pl.get("language_detected"),
-        "commitments": commitments,
+        "commitments": enriched_commitments,
         "observations": sorted_obs,
         "rating": rating,
         "normalized_transcript": pl.get("normalized_transcript") or pl.get("transcript"),
+        "deadlines_overdue": overdue,
+        "deadlines_upcoming": upcoming,
     }
 
 
@@ -228,11 +333,16 @@ class RegistryService:
                 continue
             pl = doc.get("payload") or {}
             com = pl.get("commitments")
-            ncom = len(com) if isinstance(com, list) else 0
+            com_list = com if isinstance(com, list) else []
+            ncom = len(com_list)
             obs = doc.get("observations") or []
             nobs = len(obs) if isinstance(obs, list) else 0
-            rating = calculate_rating(obs)
+            rating = calculate_rating(obs, com_list)
             has_photo_count = sum(1 for o in obs if isinstance(o, dict) and o.get("has_photo"))
+            overdue = sum(
+                1 for c in com_list
+                if isinstance(c, dict) and _deadline_status(c.get("deadline"), c.get("fulfillment_status")) == "overdue"
+            )
             out.append(
                 {
                     "id": doc["id"],
@@ -245,6 +355,7 @@ class RegistryService:
                     "observations_total": nobs,
                     "observations_with_photo": has_photo_count,
                     "rating": rating,
+                    "deadlines_overdue": overdue,
                 }
             )
 
@@ -256,11 +367,70 @@ class RegistryService:
 
         return out[skip:skip + limit]
 
+    def get_aggregate_stats(self) -> dict[str, int]:
+        """Aggregate stats across all published sessions."""
+        ids = self._store.list_published_ids(skip=0, limit=500)
+        total_sessions = 0
+        total_commitments = 0
+        total_observations = 0
+        total_overdue = 0
+        for sid in ids:
+            doc = self._store.get_session(sid)
+            if not doc or not doc.get("published"):
+                continue
+            total_sessions += 1
+            pl = doc.get("payload") or {}
+            com = pl.get("commitments")
+            com_list = com if isinstance(com, list) else []
+            total_commitments += len(com_list)
+            obs = doc.get("observations") or []
+            total_observations += len(obs) if isinstance(obs, list) else 0
+            total_overdue += sum(
+                1 for c in com_list
+                if isinstance(c, dict) and _deadline_status(c.get("deadline"), c.get("fulfillment_status")) == "overdue"
+            )
+        return {
+            "sessions": total_sessions,
+            "commitments": total_commitments,
+            "observations": total_observations,
+            "overdue": total_overdue,
+        }
+
     def get_public_session(self, session_id: str) -> Optional[dict[str, Any]]:
         doc = self._store.get_session(session_id)
         if not doc or not doc.get("published"):
             return None
         return build_public_view(doc)
+
+    def set_commitment_status(
+        self, session_id: str, commitment_index: int, status: str,
+        *, user: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Mark a commitment as fulfilled or revert to pending."""
+        if status not in ("fulfilled", "pending"):
+            raise ValueError("invalid_status")
+        doc = self._store.get_session(session_id)
+        if not doc:
+            raise ValueError("session_not_found")
+        pl = doc.get("payload") or {}
+        com = pl.get("commitments")
+        if not isinstance(com, list) or commitment_index >= len(com) or commitment_index < 0:
+            raise ValueError("commitment_index_out_of_range")
+        item = com[commitment_index]
+        if not isinstance(item, dict):
+            raise ValueError("commitment_index_out_of_range")
+        item["fulfillment_status"] = status
+        item["fulfilled_at"] = datetime.now(timezone.utc).isoformat() if status == "fulfilled" else None
+        item["fulfilled_by"] = user.get("username") if user and status == "fulfilled" else None
+        pl["commitments"] = com
+        doc["payload"] = pl
+        self._store.save_document(session_id, doc)
+        return {
+            "commitment_index": commitment_index,
+            "fulfillment_status": status,
+            "fulfilled_at": item.get("fulfilled_at"),
+            "fulfilled_by": item.get("fulfilled_by"),
+        }
 
     def add_public_observation(
         self,
