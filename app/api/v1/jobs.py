@@ -4,9 +4,10 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
-from app.api.deps import get_analysis_service, require_akim
+from app.api.deps import get_analysis_service, require_operator
 from app.application.analysis_service import AnalysisService
 from app.application.profiles import list_analysis_profiles
+from app.application.role_policy import assert_analysis_type_allowed
 from app.core.config import settings
 from app.domain.models import AnalyzeUrlRequest, JobCreatedResponse, JobStatusResponse
 
@@ -25,9 +26,10 @@ async def create_job_from_file(
     analysis_type: str = Form("general"),
     instructions: str | None = Form(None),
     webhook_url: str | None = Form(None),
-    _user: dict[str, Any] = Depends(require_akim),
+    user: dict[str, Any] = Depends(require_operator),
     service: AnalysisService = Depends(get_analysis_service),
 ):
+    assert_analysis_type_allowed(user, analysis_type)
     suffix = ""
     if file.filename and "." in file.filename:
         suffix = "." + file.filename.rsplit(".", 1)[-1]
@@ -48,16 +50,17 @@ async def create_job_from_file(
 @router.post("/url", response_model=JobCreatedResponse, status_code=202)
 def create_job_from_url(
     req: AnalyzeUrlRequest,
-    _user: dict[str, Any] = Depends(require_akim),
+    user: dict[str, Any] = Depends(require_operator),
     service: AnalysisService = Depends(get_analysis_service),
 ):
+    assert_analysis_type_allowed(user, req.analysis_type)
     return service.enqueue_url_job(req)
 
 
 @router.get("/{task_id}", response_model=JobStatusResponse)
 def get_job(
     task_id: str,
-    _user: dict[str, Any] = Depends(require_akim),
+    _user: dict[str, Any] = Depends(require_operator),
     service: AnalysisService = Depends(get_analysis_service),
 ):
     return service.get_job_status(task_id)
@@ -69,10 +72,11 @@ async def run_file_sync(
     language: str | None = Form(None),
     analysis_type: str = Form("general"),
     instructions: str | None = Form(None),
-    _user: dict[str, Any] = Depends(require_akim),
+    user: dict[str, Any] = Depends(require_operator),
     service: AnalysisService = Depends(get_analysis_service),
 ):
     """Синхронно: только для коротких файлов; блокирует воркер API."""
+    assert_analysis_type_allowed(user, analysis_type)
     suffix = ""
     if file.filename and "." in file.filename:
         suffix = "." + file.filename.rsplit(".", 1)[-1]
@@ -97,9 +101,10 @@ async def run_file_sync(
 @router.post("/url/sync")
 async def run_url_sync(
     req: AnalyzeUrlRequest,
-    _user: dict[str, Any] = Depends(require_akim),
+    user: dict[str, Any] = Depends(require_operator),
     service: AnalysisService = Depends(get_analysis_service),
 ):
+    assert_analysis_type_allowed(user, req.analysis_type)
     try:
         return await service.run_url_sync(req)
     except Exception as e:

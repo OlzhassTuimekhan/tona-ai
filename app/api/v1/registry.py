@@ -2,8 +2,9 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.deps import get_registry_service, require_akim
+from app.api.deps import get_registry_service, require_operator
 from app.application.registry_service import RegistryService, _enrich_commitments_deadlines, _deadline_status
+from app.application.role_policy import assert_analysis_type_allowed
 from pydantic import BaseModel, Field
 
 from app.domain.models import (
@@ -35,13 +36,15 @@ def _org_filter(doc: dict[str, Any], user: dict[str, Any]) -> bool:
 @router.post("/import", response_model=RegistryImportResponse)
 def import_completed_analysis(
     body: RegistryImportBody,
-    user: dict[str, Any] = Depends(require_akim),
+    user: dict[str, Any] = Depends(require_operator),
     svc: RegistryService = Depends(get_registry_service),
 ):
+    at = body.analysis_type or "general"
+    assert_analysis_type_allowed(user, at)
     try:
         sid, dup = svc.import_task(
             body.task_id,
-            analysis_type=body.analysis_type,
+            analysis_type=at,
             title_override=body.title_override,
             user=user,
         )
@@ -54,7 +57,7 @@ def import_completed_analysis(
 def list_registry_sessions(
     skip: int = 0,
     limit: int = 50,
-    user: dict[str, Any] = Depends(require_akim),
+    user: dict[str, Any] = Depends(require_operator),
     svc: RegistryService = Depends(get_registry_service),
 ):
     cap = min(max(limit, 1), 100)
@@ -71,7 +74,7 @@ def list_registry_sessions(
 @router.get("/sessions/{session_id}")
 def get_registry_session(
     session_id: str,
-    user: dict[str, Any] = Depends(require_akim),
+    user: dict[str, Any] = Depends(require_operator),
     svc: RegistryService = Depends(get_registry_service),
 ):
     doc = svc.get_session(session_id)
@@ -91,7 +94,7 @@ def get_registry_session(
 def publish_registry_session(
     session_id: str,
     body: PublishSessionBody,
-    user: dict[str, Any] = Depends(require_akim),
+    user: dict[str, Any] = Depends(require_operator),
     svc: RegistryService = Depends(get_registry_service),
 ):
     try:
@@ -113,7 +116,7 @@ def set_commitment_status(
     session_id: str,
     index: int,
     body: CommitmentStatusBody,
-    user: dict[str, Any] = Depends(require_akim),
+    user: dict[str, Any] = Depends(require_operator),
     svc: RegistryService = Depends(get_registry_service),
 ):
     doc = svc.get_session(session_id)

@@ -122,3 +122,14 @@ class RedisRegistry:
         pipe.srem(f"{self._UP}index", user_id)
         pipe.execute()
         return True
+
+    def update_user_fields(self, user_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
+        """Merge allowed fields into user document. Does not change username/id/role/password here."""
+        user = self.get_user(user_id)
+        if not user:
+            return None
+        blocked = {"id", "username", "password_hash", "role", "created_at"}
+        clean = {k: v for k, v in updates.items() if k not in blocked}
+        merged = {**user, **clean}
+        self._r.set(f"{self._UP}{user_id}", json.dumps(merged, ensure_ascii=False))
+        return merged

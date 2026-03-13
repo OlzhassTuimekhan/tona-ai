@@ -5,6 +5,7 @@ from typing import Any, Optional
 
 from app.application.analysis_service import AnalysisService
 from app.application.evidence import enrich_extracted_items
+from app.application.role_policy import OPERATOR_ROLES
 from app.domain.models import PublicObservationBody, PublishSessionBody
 from app.infrastructure.persistence.redis_registry import RedisRegistry
 
@@ -263,12 +264,12 @@ class RegistryService:
         return sid, False
 
     def _resolve_org_location(self, org_name: str) -> tuple[str | None, str | None]:
-        """Find city/region for an org by looking up akim profiles."""
+        """Find city/region for an org by looking up operator profiles."""
         if not org_name:
             return None, None
         target = org_name.lower().strip()
         for u in self._store.list_users():
-            if u.get("role") in ("akim", "admin") and (u.get("org") or "").lower().strip() == target:
+            if u.get("role") in (*OPERATOR_ROLES, "admin") and (u.get("org") or "").lower().strip() == target:
                 return u.get("city"), u.get("region")
         return None, None
 
@@ -436,6 +437,8 @@ class RegistryService:
         self,
         session_id: str,
         body: PublicObservationBody,
+        *,
+        observer: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         doc = self._store.get_session(session_id)
         if not doc or not doc.get("published"):
@@ -456,6 +459,13 @@ class RegistryService:
             "photo_url": (body.photo_url or "").strip() or None,
             "has_photo": bool((body.photo_url or "").strip()),
         }
+        if observer and observer.get("role") == "citizen":
+            fn = (observer.get("first_name") or "").strip()
+            ln = (observer.get("last_name") or "").strip()
+            display = f"{fn} {ln}".strip() or observer.get("username", "")
+            entry["registered_user_id"] = observer.get("id")
+            entry["observer_display"] = display
+            entry["observer_district"] = observer.get("district")
         obs.append(entry)
         doc["observations"] = obs
         self._store.save_document(session_id, doc)

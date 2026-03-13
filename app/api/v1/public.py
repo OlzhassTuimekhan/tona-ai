@@ -2,12 +2,12 @@ import shutil
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import ValidationError
 
-from app.api.deps import get_redis_registry, get_registry_service
+from app.api.deps import get_optional_user, get_redis_registry, get_registry_service
 from app.infrastructure.persistence.redis_registry import RedisRegistry
 from app.application.factories import build_soniox
 from app.application.registry_service import RegistryService
@@ -204,6 +204,7 @@ async def add_public_observation(
     human_voice: UploadFile = File(...),
     photo: UploadFile | None = File(None),
     svc: RegistryService = Depends(get_registry_service),
+    account: dict[str, Any] | None = Depends(get_optional_user),
 ):
     if website.strip():
         raise HTTPException(status_code=400, detail="Отправка отклонена.")
@@ -295,8 +296,9 @@ async def add_public_observation(
         if tmp_path is not None:
             tmp_path.unlink(missing_ok=True)
 
+    observer = account if (account and account.get("role") == "citizen") else None
     try:
-        return svc.add_public_observation(session_id, body)
+        return svc.add_public_observation(session_id, body, observer=observer)
     except ValueError as e:
         code = str(e)
         if code == "session_not_public":

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import get_redis_registry, get_registry_service, require_admin
 from app.application.auth_service import hash_password
+from app.application.role_policy import OPERATOR_ROLES, enrich_user_response
 from app.application.registry_service import RegistryService, calculate_rating, _deadline_status
 from app.infrastructure.persistence.redis_registry import RedisRegistry
 
@@ -15,7 +16,10 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 class CreateUserRequest(BaseModel):
     username: str = Field(min_length=2, max_length=100)
     password: str = Field(min_length=4, max_length=200)
-    role: str = Field(pattern=r"^(admin|akim)$")
+    role: str = Field(
+        pattern=r"^(admin|akim|general|meeting|court|police|call_center)$",
+        description="Роль: админ, аким (все профили) или доменный оператор (один профиль).",
+    )
     org: str | None = None
     city: str | None = None
     region: str | None = None
@@ -40,7 +44,8 @@ def create_user(
     }
     uid = reg.save_user(user)
     user["id"] = uid
-    return {k: v for k, v in user.items() if k != "password_hash"}
+    safe = {k: v for k, v in user.items() if k != "password_hash"}
+    return enrich_user_response(safe)
 
 
 @router.get("/users")
@@ -49,7 +54,12 @@ def list_users(
     reg: RedisRegistry = Depends(get_redis_registry),
 ):
     users = reg.list_users()
-    return {"users": [{k: v for k, v in u.items() if k != "password_hash"} for u in users]}
+    return {
+        "users": [
+            enrich_user_response({k: v for k, v in u.items() if k != "password_hash"})
+            for u in users
+        ]
+    }
 
 
 @router.delete("/users/{user_id}", status_code=204)
@@ -72,6 +82,7 @@ def admin_dashboard(
 ):
     users = reg.list_users()
     akims = [u for u in users if u.get("role") == "akim"]
+    operators_all = [u for u in users if u.get("role") in OPERATOR_ROLES]
 
     all_sessions = svc.list_sessions(skip=0, limit=500)
     published_ids = set(s["id"] for s in all_sessions if s.get("published"))
@@ -145,6 +156,8 @@ def admin_dashboard(
         o["fulfillment_pct"] = round(o["fulfilled"] / total * 100)
         o["overdue_pct"] = round(o["overdue"] / total * 100)
 
+    citizens_n = sum(1 for u in users if u.get("role") == "citizen")
+
     return {
         "totals": {
             "sessions": len(all_sessions),
@@ -154,6 +167,8 @@ def admin_dashboard(
             "overdue": total_overdue,
             "observations": total_observations,
             "akims": len(akims),
+            "operators": len(operators_all),
+            "citizens": citizens_n,
         },
         "orgs": orgs_list,
         "overdue_items": overdue_items[:20],

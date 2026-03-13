@@ -41,6 +41,33 @@ export type AuthUser = {
   org?: string | null
   city?: string | null
   region?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  district?: string | null
+  phone?: string | null
+  /** Список id профилей анализа, доступных этой роли (с бэкенда) */
+  allowed_analysis_types?: string[]
+  role_label_ru?: string
+}
+
+export type RegisterBody = {
+  username: string
+  password: string
+  first_name: string
+  last_name: string
+  district: string
+  city?: string
+  region?: string
+  phone?: string
+}
+
+export type ProfileUpdate = {
+  first_name?: string
+  last_name?: string
+  district?: string
+  city?: string | null
+  region?: string | null
+  phone?: string | null
 }
 
 export async function login(username: string, password: string): Promise<{ token: string; user: AuthUser }> {
@@ -59,6 +86,34 @@ export async function login(username: string, password: string): Promise<{ token
 export async function getMe(): Promise<AuthUser> {
   const r = await fetch(`${API}/auth/me`, { headers: authHeaders() })
   if (!r.ok) throw new Error(`me: ${r.status}`)
+  return r.json()
+}
+
+export async function register(
+  body: RegisterBody,
+): Promise<{ token: string; user: AuthUser }> {
+  const r = await fetch(`${API}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!r.ok) {
+    const t = await r.text()
+    throw new Error(t || `register: ${r.status}`)
+  }
+  return r.json()
+}
+
+export async function updateProfile(body: ProfileUpdate): Promise<AuthUser> {
+  const r = await fetch(`${API}/auth/me`, {
+    method: 'PATCH',
+    headers: jsonAuth(),
+    body: JSON.stringify(body),
+  })
+  if (!r.ok) {
+    const t = await r.text()
+    throw new Error(t || `profile: ${r.status}`)
+  }
   return r.json()
 }
 
@@ -376,9 +431,12 @@ export async function addPublicObservation(
     body.humanVoice,
     body.humanVoiceFileName ?? 'voice.webm',
   )
+  const headers: Record<string, string> = {}
+  const t = getToken()
+  if (t) headers.Authorization = `Bearer ${t}`
   const r = await fetch(
     `${API}/public/sessions/${encodeURIComponent(sessionId)}/observations`,
-    { method: 'POST', body: fd },
+    { method: 'POST', body: fd, headers },
   )
   if (!r.ok) {
     throw new Error(
@@ -450,6 +508,8 @@ export type AdminDashboard = {
     overdue: number
     observations: number
     akims: number
+    operators?: number
+    citizens?: number
   }
   orgs: DashboardOrgRow[]
   overdue_items: DashboardOverdueItem[]

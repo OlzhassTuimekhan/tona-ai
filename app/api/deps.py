@@ -7,6 +7,7 @@ from jose import JWTError
 from app.application.analysis_service import AnalysisService
 from app.application.auth_service import decode_token
 from app.application.registry_service import RegistryService
+from app.application.role_policy import is_operator_role
 from app.core.config import settings
 from app.infrastructure.persistence.redis_registry import RedisRegistry
 
@@ -47,7 +48,27 @@ def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dict[str,
     return user
 
 
-def require_akim(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    if user.get("role") not in ("admin", "akim"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="akim_or_admin_required")
+def require_operator(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    """Админ или оператор (аким, суд, полиция, call-центр и т.д.)."""
+    if not is_operator_role(user.get("role")):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="operator_required")
+    return user
+
+
+# Обратная совместимость имён
+require_akim = require_operator
+
+
+def get_optional_user(
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    reg: RedisRegistry = Depends(get_redis_registry),
+) -> dict[str, Any] | None:
+    """Bearer optional: no header → None; invalid/expired token → None (guest flow)."""
+    if creds is None:
+        return None
+    try:
+        payload = decode_token(creds.credentials)
+    except JWTError:
+        return None
+    user = reg.get_user(payload["sub"])
     return user
