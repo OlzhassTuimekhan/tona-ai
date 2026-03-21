@@ -7,9 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 COPY app/ ./app/
+COPY scripts/ ./scripts/
 
 RUN mkdir -p /app/temp_audio /app/uploads
 

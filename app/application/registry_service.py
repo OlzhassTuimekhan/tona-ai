@@ -7,7 +7,7 @@ from app.application.analysis_service import AnalysisService
 from app.application.evidence import enrich_extracted_items
 from app.application.role_policy import OPERATOR_ROLES
 from app.domain.models import PublicObservationBody, PublishSessionBody
-from app.infrastructure.persistence.redis_registry import RedisRegistry
+from app.infrastructure.persistence.protocol import RegistryStore
 
 _MONTHS_RU = {
     "январ": 1, "феврал": 2, "март": 3, "марта": 3,
@@ -219,7 +219,7 @@ def build_public_view(doc: dict[str, Any]) -> dict[str, Any]:
 class RegistryService:
     """Сохранение завершённого анализа в Redis-реестр + публикация + народные наблюдения."""
 
-    def __init__(self, analysis: AnalysisService, store: RedisRegistry):
+    def __init__(self, analysis: AnalysisService, store: RegistryStore):
         self._analysis = analysis
         self._store = store
 

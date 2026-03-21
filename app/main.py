@@ -9,10 +9,23 @@ from app.api.legacy import router as legacy_router
 from app.api.v1.router import router as v1_router
 from app.application.auth_service import hash_password
 from app.core.config import settings
-from app.infrastructure.persistence.redis_registry import RedisRegistry
+from app.infrastructure.persistence.factory import get_registry_store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
+
+
+def _init_postgres_schema() -> None:
+    if not (settings.DATABASE_URL or "").strip():
+        return
+    try:
+        from app.infrastructure.persistence.db import get_engine
+        from app.infrastructure.persistence.orm_models import Base
+
+        Base.metadata.create_all(bind=get_engine())
+        log.info("PostgreSQL schema ensured (create_all).")
+    except Exception:
+        log.warning("Could not init PostgreSQL schema.", exc_info=True)
 
 
 def _seed_admin() -> None:
@@ -22,7 +35,7 @@ def _seed_admin() -> None:
     if not username or not password:
         return
     try:
-        reg = RedisRegistry(settings)
+        reg = get_registry_store(settings)
         if reg.get_user_by_username(username):
             return
         reg.save_user({
@@ -36,14 +49,14 @@ def _seed_admin() -> None:
         })
         log.info("Admin user '%s' created from env vars.", username)
     except Exception:
-        log.warning("Could not seed admin user (Redis may not be ready).", exc_info=True)
+        log.warning("Could not seed admin user (DB/Redis may not be ready).", exc_info=True)
 
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title="JOIS Analysis Platform",
         description="Каркас GovTech: аудио → ASR → структурированный анализ (расширяемые профили).",
-        version="1.1.0",
+        version="1.2.0",
     )
 
     origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
@@ -62,6 +75,7 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def on_startup() -> None:
+        _init_postgres_schema()
         _seed_admin()
 
     return app

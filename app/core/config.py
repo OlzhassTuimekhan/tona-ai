@@ -34,6 +34,18 @@ class Settings(BaseSettings):
     # Реестр сессий в Redis: пусто = тот же хост, что у Celery, но DB 1 (Celery обычно 0)
     REGISTRY_REDIS_URL: str = ""
 
+    # Если задан — пользователи и карточки реестра хранятся в PostgreSQL (данные не теряются при смене Redis)
+    DATABASE_URL: str = ""
+
+    # S3 / совместимое API (MinIO и т.д.) — аудио задач и при желании фото
+    S3_BUCKET: str = ""
+    S3_REGION: str = "us-east-1"
+    S3_ENDPOINT_URL: str = ""
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    # Публичный базовый URL для ссылок на объекты (CDN или https://bucket.s3.region.amazonaws.com)
+    S3_PUBLIC_BASE_URL: str = ""
+
     class Config:
         env_file = ".env"
         extra = "ignore"

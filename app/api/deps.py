@@ -9,7 +9,8 @@ from app.application.auth_service import decode_token
 from app.application.registry_service import RegistryService
 from app.application.role_policy import is_operator_role
 from app.core.config import settings
-from app.infrastructure.persistence.redis_registry import RedisRegistry
+from app.infrastructure.persistence.factory import get_registry_store
+from app.infrastructure.persistence.protocol import RegistryStore
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -18,17 +19,21 @@ def get_analysis_service() -> AnalysisService:
     return AnalysisService(settings)
 
 
-def get_redis_registry() -> RedisRegistry:
-    return RedisRegistry(settings)
+def get_registry() -> RegistryStore:
+    return get_registry_store(settings)
+
+
+# Обратная совместимость имён
+get_redis_registry = get_registry
 
 
 def get_registry_service() -> RegistryService:
-    return RegistryService(get_analysis_service(), get_redis_registry())
+    return RegistryService(get_analysis_service(), get_registry())
 
 
 def get_current_user(
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
-    reg: RedisRegistry = Depends(get_redis_registry),
+    reg: RegistryStore = Depends(get_registry),
 ) -> dict[str, Any]:
     if creds is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not_authenticated")
@@ -61,7 +66,7 @@ require_akim = require_operator
 
 def get_optional_user(
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
-    reg: RedisRegistry = Depends(get_redis_registry),
+    reg: RegistryStore = Depends(get_registry),
 ) -> dict[str, Any] | None:
     """Bearer optional: no header → None; invalid/expired token → None (guest flow)."""
     if creds is None:

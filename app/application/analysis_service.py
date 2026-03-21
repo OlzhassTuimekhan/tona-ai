@@ -18,7 +18,7 @@ class AnalysisService:
     def enqueue_file_job(
         self,
         *,
-        file_path: Path,
+        file_path: Path | str,
         language: Optional[str] = None,
         analysis_type: str = "general",
         instructions: Optional[str] = None,

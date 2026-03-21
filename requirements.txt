@@ -11,3 +11,6 @@ requests
 pydub
 python-jose[cryptography]
 bcrypt
+sqlalchemy>=2.0
+psycopg[binary]>=3.1
+boto3>=1.34

@@ -74,32 +74,41 @@
   padding: 1.5rem 1.25rem 3rem;
 }
 
+/* Гостевой режим: шапка как на лендинге — логотип слева, пункты в ряд справа */
 .app-top-guest {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.5rem;
-  padding: 1rem 1.25rem 1.25rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.85rem 1.25rem;
   border-bottom: 1px solid var(--border);
   background: rgba(30, 24, 49, 0.5);
 }
 
 .app-top-guest .app-brand {
-  padding: 0.35rem 0.75rem 0.5rem;
-  align-self: flex-start;
+  flex-shrink: 0;
+  padding: 0.35rem 0.75rem;
 }
 
 .app-top-guest nav {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  align-items: stretch;
-  width: 100%;
-  max-width: 22rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem 0.35rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .app-top-guest .app-nav-link {
-  width: 100%;
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .auth-loading {

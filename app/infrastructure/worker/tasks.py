@@ -6,6 +6,7 @@ from typing import Optional
 from celery import Celery
 
 from app.core.config import settings
+from app.infrastructure.storage.object_storage import resolve_worker_audio_path
 from app.infrastructure.asr.soniox import SonioxASR
 from app.infrastructure.llm.llm_client import LLMAnalyzer
 from app.infrastructure.webhooks import send_webhook
@@ -51,8 +52,10 @@ def analyze_file(
     task_id = self.request.id
     logger.info(f"[{task_id}] Starting file analysis: {file_path}")
 
+    path_resolved: Path | None = None
     try:
-        path = Path(file_path)
+        path = resolve_worker_audio_path(settings, file_path)
+        path_resolved = path
         transcript, tokens, duration = soniox.transcribe_file(path, language=language)
         normalized = soniox.normalize_transcript(transcript)
         logger.info(f"[{task_id}] Transcription done: {len(transcript)} chars, {duration:.0f}s")
@@ -91,9 +94,13 @@ def analyze_file(
 
     finally:
         try:
-            p = Path(file_path)
-            if p.exists() and str(settings.TEMP_AUDIO_DIR) in str(p):
-                p.unlink()
+            if path_resolved is not None and path_resolved.exists():
+                if str(settings.TEMP_AUDIO_DIR.resolve()) in str(path_resolved.resolve()):
+                    path_resolved.unlink(missing_ok=True)
+            if not str(file_path).startswith("s3://"):
+                p = Path(file_path)
+                if p.exists() and str(settings.TEMP_AUDIO_DIR.resolve()) in str(p.resolve()):
+                    p.unlink(missing_ok=True)
         except Exception:
             pass
 

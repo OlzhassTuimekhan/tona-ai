@@ -9,6 +9,7 @@ from app.application.analysis_service import AnalysisService
 from app.application.profiles import list_analysis_profiles
 from app.application.role_policy import assert_analysis_type_allowed
 from app.core.config import settings
+from app.infrastructure.storage.object_storage import upload_job_audio_and_return_ref
 from app.domain.models import AnalyzeUrlRequest, JobCreatedResponse, JobStatusResponse
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -38,8 +39,10 @@ async def create_job_from_file(
     content = await file.read()
     temp_path.write_bytes(content)
 
+    audio_ref = upload_job_audio_and_return_ref(settings, temp_path)
+
     return service.enqueue_file_job(
-        file_path=temp_path,
+        file_path=audio_ref,
         language=language,
         analysis_type=analysis_type,
         instructions=instructions,

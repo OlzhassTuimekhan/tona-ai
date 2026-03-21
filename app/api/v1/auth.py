@@ -4,10 +4,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
-from app.api.deps import get_current_user, get_redis_registry
+from app.api.deps import get_current_user, get_registry
 from app.application.auth_service import create_token, hash_password, verify_password
 from app.application.role_policy import enrich_user_response
-from app.infrastructure.persistence.redis_registry import RedisRegistry
+from app.infrastructure.persistence.protocol import RegistryStore
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -68,7 +68,7 @@ def _user_for_client(u: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(body: LoginRequest, reg: RedisRegistry = Depends(get_redis_registry)):
+def login(body: LoginRequest, reg: RegistryStore = Depends(get_registry)):
     user = reg.get_user_by_username(body.username.strip())
     if not user or not verify_password(body.password, user.get("password_hash", "")):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_credentials")
@@ -77,7 +77,7 @@ def login(body: LoginRequest, reg: RedisRegistry = Depends(get_redis_registry)):
 
 
 @router.post("/register", response_model=LoginResponse, status_code=201)
-def register(body: RegisterRequest, reg: RedisRegistry = Depends(get_redis_registry)):
+def register(body: RegisterRequest, reg: RegistryStore = Depends(get_registry)):
     uname = body.username.strip()
     if reg.get_user_by_username(uname):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="username_taken")
@@ -108,7 +108,7 @@ def me(user: dict[str, Any] = Depends(get_current_user)):
 def patch_me(
     body: ProfileUpdateRequest,
     user: dict[str, Any] = Depends(get_current_user),
-    reg: RedisRegistry = Depends(get_redis_registry),
+    reg: RegistryStore = Depends(get_registry),
 ):
     raw = body.model_dump(exclude_unset=True)
     data: dict[str, Any] = {}

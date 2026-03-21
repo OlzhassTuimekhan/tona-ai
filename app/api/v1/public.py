@@ -7,12 +7,13 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import ValidationError
 
-from app.api.deps import get_optional_user, get_redis_registry, get_registry_service
-from app.infrastructure.persistence.redis_registry import RedisRegistry
+from app.api.deps import get_optional_user, get_registry, get_registry_service
+from app.infrastructure.persistence.protocol import RegistryStore
 from app.application.factories import build_soniox
 from app.application.registry_service import RegistryService
 from app.application.voice_human_check import transcript_confirms_not_robot
 from app.core.config import settings
+from app.infrastructure.storage.object_storage import s3_configured, upload_file_to_s3
 from app.domain.models import (
     PublicObservationBody,
     PublicSessionListResponse,
@@ -133,7 +134,7 @@ def get_org_ratings(
 @router.get("/cities")
 def get_available_cities(
     svc: RegistryService = Depends(get_registry_service),
-    reg: RedisRegistry = Depends(get_redis_registry),
+    reg: RegistryStore = Depends(get_registry),
 ):
     """Return distinct city/region/org values from sessions + akim profiles."""
     rows = svc.list_public_sessions(skip=0, limit=500)
@@ -172,7 +173,7 @@ def get_public_session(
 
 
 def _save_photo(upload: UploadFile) -> str:
-    """Save uploaded photo, return URL path like /uploads/abc.jpg."""
+    """Сохраняет фото локально или в S3; возвращает путь /uploads/... или полный HTTPS URL."""
     raw_name = upload.filename or "photo.jpg"
     ext = Path(raw_name).suffix.lower()
     if ext not in _ALLOWED_PHOTO_EXT:
@@ -190,6 +191,13 @@ def _save_photo(upload: UploadFile) -> str:
     if dest_path.stat().st_size < 100:
         dest_path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Файл фото повреждён или пуст.")
+    if s3_configured(settings):
+        key = f"public/photos/{dest_name}"
+        try:
+            url = upload_file_to_s3(settings, dest_path, key)
+        finally:
+            dest_path.unlink(missing_ok=True)
+        return url
     return f"/uploads/{dest_name}"
 
 

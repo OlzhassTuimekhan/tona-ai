@@ -4,11 +4,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.api.deps import get_redis_registry, get_registry_service, require_admin
+from app.api.deps import get_registry, get_registry_service, require_admin
 from app.application.auth_service import hash_password
 from app.application.role_policy import OPERATOR_ROLES, enrich_user_response
 from app.application.registry_service import RegistryService, calculate_rating, _deadline_status
-from app.infrastructure.persistence.redis_registry import RedisRegistry
+from app.infrastructure.persistence.protocol import RegistryStore
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -29,7 +29,7 @@ class CreateUserRequest(BaseModel):
 def create_user(
     body: CreateUserRequest,
     _: dict[str, Any] = Depends(require_admin),
-    reg: RedisRegistry = Depends(get_redis_registry),
+    reg: RegistryStore = Depends(get_registry),
 ):
     if reg.get_user_by_username(body.username):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="username_taken")
@@ -51,7 +51,7 @@ def create_user(
 @router.get("/users")
 def list_users(
     _: dict[str, Any] = Depends(require_admin),
-    reg: RedisRegistry = Depends(get_redis_registry),
+    reg: RegistryStore = Depends(get_registry),
 ):
     users = reg.list_users()
     return {
@@ -66,7 +66,7 @@ def list_users(
 def delete_user(
     user_id: str,
     admin: dict[str, Any] = Depends(require_admin),
-    reg: RedisRegistry = Depends(get_redis_registry),
+    reg: RegistryStore = Depends(get_registry),
 ):
     if user_id == admin["id"]:
         raise HTTPException(status_code=400, detail="cannot_delete_self")
@@ -77,7 +77,7 @@ def delete_user(
 @router.get("/dashboard")
 def admin_dashboard(
     _: dict[str, Any] = Depends(require_admin),
-    reg: RedisRegistry = Depends(get_redis_registry),
+    reg: RegistryStore = Depends(get_registry),
     svc: RegistryService = Depends(get_registry_service),
 ):
     users = reg.list_users()
