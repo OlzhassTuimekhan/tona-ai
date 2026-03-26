@@ -20,7 +20,7 @@ export default function RatingsPage() {
   }, [loadRatings])
 
   return (
-    <section className="panel panel-citizen">
+    <section className="panel panel-citizen ratings-page">
       <div className="row space-between citizen-toolbar">
         <h2 className="panel-title panel-title-plain">Рейтинг органов власти</h2>
         <button type="button" className="btn-secondary" onClick={() => void loadRatings()}>

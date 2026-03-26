@@ -173,6 +173,7 @@ export default function SessionDetailPage() {
             <label className="field">
               <span>Орган / контекст</span>
               <input
+                type="text"
                 value={pubOrg}
                 onChange={(e) => setPubOrg(e.target.value)}
                 placeholder="Например: Акимат г. Талдыкорган"

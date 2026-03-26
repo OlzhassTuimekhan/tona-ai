@@ -1,0 +1,744 @@
+/* Глобальные стили JOIS (зелёный / белый) — токены в tokens.css */
+
+.shell-fluid.shell-detail-page {
+  padding-left: clamp(0.65rem, 2vw, 1.25rem);
+  padding-right: clamp(0.65rem, 2vw, 1.25rem);
+}
+
+/* ——— Шапка e.gov ——— */
+.app-top-egov {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  gap: 0;
+  border-bottom: none;
+  background: var(--bg);
+}
+
+.app-top-egov .egov-header-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-brand-egov {
+  font-weight: 800;
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.app-brand-egov span {
+  color: var(--ego-green);
+}
+
+.egov-header-top-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.egov-link-muted {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.egov-link-muted:hover {
+  color: var(--ego-green);
+}
+
+.egov-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--ego-green);
+  border: 1px solid var(--ego-green);
+  border-radius: 8px;
+  background: var(--bg);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.egov-btn-outline:hover {
+  background: var(--ego-green-soft);
+}
+
+/* Выше специфичность, чем у `.app-top-guest nav` в layout.css (иначе остаётся flex-end) */
+.app-top-guest .egov-nav-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  width: 100%;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  padding: 0.55rem 1rem;
+  background: var(--ego-green);
+  box-shadow: 0 2px 8px rgba(0, 100, 60, 0.12);
+}
+
+.egov-nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: rgba(255, 255, 255, 0.92);
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.egov-nav-link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.egov-nav-link.active {
+  color: #fff;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* ——— Лендинг ——— */
+.public-landing {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.landing-hero {
+  position: relative;
+  margin: 0 0 0.75rem;
+  padding: clamp(2.75rem, 6vw, 4.5rem) clamp(1.25rem, 4vw, 2rem) clamp(2.75rem, 5vw, 3.75rem);
+  border-radius: 0;
+  border-bottom: 1px solid var(--border);
+  background-color: #ffffff;
+  background-image:
+    radial-gradient(ellipse 95% 72% at 18% -8%, rgba(0, 166, 81, 0.11), transparent 52%),
+    radial-gradient(ellipse 70% 50% at 85% 5%, rgba(0, 166, 81, 0.06), transparent 48%),
+    linear-gradient(
+      168deg,
+      #dff3e8 0%,
+      #e8f5ef 18%,
+      #f0f9f4 38%,
+      #f7fcf9 58%,
+      #ffffff 82%,
+      #ffffff 100%
+    );
+  background-repeat: no-repeat;
+}
+
+.landing-eyebrow {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  color: var(--ego-green);
+}
+
+.landing-title {
+  margin: 0 0 1.35rem;
+  max-width: min(48ch, 100%);
+  font-size: clamp(1.65rem, 3.8vw, 2.35rem);
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.035em;
+  color: var(--text);
+}
+
+.landing-lead {
+  margin: 0 0 2rem;
+  max-width: min(52ch, 100%);
+  font-size: 1.0625rem;
+  line-height: 1.72;
+  color: var(--muted);
+}
+
+.landing-hero-actions {
+  gap: 0.85rem 1.1rem;
+  margin: 0 0 0.25rem;
+}
+
+.landing-cta-primary {
+  padding: 0.78rem 1.6rem;
+  border-radius: 999px;
+  color: var(--on-accent);
+  background: linear-gradient(180deg, #00b85d 0%, var(--ego-green) 100%);
+  border: 1px solid rgba(0, 120, 65, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 166, 81, 0.28);
+}
+
+.landing-cta-primary:hover,
+.landing-cta-primary:hover {
+  box-shadow: 0 6px 22px rgba(0, 166, 81, 0.35);
+}
+
+.landing-cta-ghost {
+  padding: 0.72rem 1.45rem;
+  border-radius: 999px;
+  color: var(--ego-green);
+  border-color: var(--border);
+  background: var(--bg);
+}
+
+.landing-cta-ghost:hover,
+.landing-cta-ghost:hover {
+  border-color: var(--ego-green);
+  background: var(--ego-green-soft);
+  color: var(--ego-green-dark);
+}
+
+.landing-stats {
+  margin-top: 2.5rem;
+  padding-top: 2rem;
+  gap: 1rem;
+  border-top-color: var(--border);
+}
+
+.landing-stat-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.landing-stat-value {
+  color: var(--ego-green);
+}
+
+.landing-stat-label {
+  color: var(--muted);
+}
+
+.landing-section-title {
+  color: var(--ego-green);
+}
+
+.landing-section-intro {
+  color: var(--muted);
+}
+
+.landing-feature {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.landing-feature:hover,
+.landing-feature:hover {
+  border-color: rgba(0, 166, 81, 0.35);
+}
+
+.landing-feature-icon {
+  color: var(--ego-green);
+}
+
+.landing-feature-text {
+  color: var(--muted);
+}
+
+.landing-steps li,
+.landing-steps li {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.landing-steps li::before,
+.landing-steps li::before {
+  background: var(--ego-green);
+  color: #fff;
+}
+
+.landing-steps li strong,
+.landing-steps li strong {
+  color: var(--text);
+}
+
+.landing-catalog-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.06);
+}
+
+.landing-catalog-title {
+  color: var(--text);
+}
+
+.landing-catalog-sub {
+  color: var(--muted);
+}
+
+.public-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.public-card:hover,
+.public-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 166, 81, 0.35);
+}
+
+.public-card-title {
+  color: var(--text);
+}
+
+.public-card-org {
+  color: var(--ego-green-dark);
+}
+
+.public-card-meta {
+  color: var(--muted);
+}
+
+.public-card-cta {
+  color: #fff;
+  background: var(--ego-green);
+  border-top: 1px solid rgba(0, 120, 65, 0.35);
+}
+
+.public-card-cta:hover,
+.public-card-cta:hover {
+  background: var(--ego-green-dark);
+  color: #fff;
+}
+
+.search-input {
+  background: var(--input-bg);
+  border-color: var(--input-border);
+  color: var(--text);
+}
+
+.city-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6L11 1.5' stroke='%2300a651' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85rem center;
+  background-size: 12px 8px;
+  border: 1px solid var(--ego-green);
+  border-radius: var(--input-radius);
+  box-shadow: none;
+  color: var(--text);
+  padding: 0.55rem 2.4rem 0.55rem 0.95rem;
+  min-height: 2.75rem;
+  min-width: 11rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.city-select:hover:not(:disabled),
+.city-select:hover:not(:disabled) {
+  border-color: var(--ego-green-dark);
+  background-color: var(--ego-green-soft);
+}
+
+.city-select:focus,
+.city-select:focus {
+  outline: none;
+  border-color: var(--ego-green-dark);
+  box-shadow: 0 0 0 3px rgba(0, 166, 81, 0.2);
+}
+
+.city-select:disabled,
+.city-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.catalog-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0.75rem 0 0;
+}
+
+.catalog-filter-bar .catalog-filter-search,
+.catalog-filter-bar .catalog-filter-search {
+  flex: 1 1 14rem;
+  min-width: min(100%, 11rem);
+  width: auto;
+  margin-bottom: 0;
+  min-height: 2.75rem;
+  box-sizing: border-box;
+}
+
+.catalog-filter-bar .city-select,
+.catalog-filter-bar .city-select {
+  min-height: 2.75rem;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.catalog-filter-bar .catalog-filter-submit,
+.catalog-filter-bar .catalog-filter-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 1.2rem;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.catalog-filter-bar .catalog-filter-reset,
+.catalog-filter-bar .catalog-filter-reset {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.85rem;
+  box-sizing: border-box;
+}
+
+.btn-secondary {
+  color: var(--ego-green);
+  border-color: var(--ego-green);
+  background: var(--bg);
+}
+
+.btn-secondary:hover:not(:disabled),
+.btn-secondary:hover:not(:disabled) {
+  background: var(--ego-green-soft);
+}
+
+.filter-chip {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.filter-chip:hover,
+.filter-chip:hover {
+  border-color: var(--ego-green);
+}
+
+.filter-chip.active,
+.filter-chip.active {
+  border-color: var(--ego-green);
+  color: var(--ego-green);
+  background: var(--ego-green-soft);
+}
+
+.btn-text {
+  color: var(--muted);
+}
+
+.landing-catalog-status {
+  color: var(--muted);
+}
+
+.error {
+  color: #c62828;
+}
+
+/* Быстрые разделы (сетка) */
+.egov-quick-section {
+  padding: 2rem 0 2.5rem;
+}
+
+.egov-section-title {
+  margin: 0 0 1.25rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ego-green);
+}
+
+.egov-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: 0.85rem;
+}
+
+.egov-tile {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  min-height: 4.5rem;
+  text-decoration: none;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.egov-tile:hover {
+  border-color: rgba(0, 166, 81, 0.45);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.egov-tile-icon {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ego-green);
+  border-radius: 8px;
+  background: var(--ego-green-soft);
+}
+
+.egov-tile-body {
+  min-width: 0;
+}
+
+.egov-tile-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.egov-tile-desc {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.egov-two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1.5rem 2rem;
+  padding: 2rem 0 2.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.egov-list-title {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ego-green);
+}
+
+.egov-link-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.egov-link-list li {
+  position: relative;
+  margin: 0 0 0.5rem;
+  padding-left: 1rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.egov-link-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ego-green);
+}
+
+.egov-link-list a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.egov-link-list a:hover {
+  color: var(--ego-green);
+  text-decoration: underline;
+}
+
+.landing-footer {
+  margin-top: 2rem;
+  padding: 1.75rem 1.25rem 2rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 10px 10px 0 0;
+}
+
+.landing-footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.landing-footer-brand {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.landing-footer-brand span {
+  color: var(--ego-green);
+}
+
+.landing-footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.landing-footer-nav a {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.landing-footer-nav a:hover {
+  color: var(--ego-green);
+}
+
+/* Панели на страницах рейтинга и карточки */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.panel-citizen {
+  max-width: 52rem;
+}
+
+.panel-citizen.ratings-page {
+  max-width: none;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.panel-citizen.public-detail,
+.panel-citizen.public-detail {
+  max-width: none;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  box-sizing: border-box;
+}
+
+.public-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+  gap: 1.5rem 2.25rem;
+  align-items: start;
+  width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .public-detail-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.public-detail-main {
+  min-width: 0;
+}
+
+.public-detail-aside {
+  min-width: 0;
+  padding: 1.1rem 1.15rem 1.25rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 2px 18px rgba(0, 0, 0, 0.06);
+}
+
+@media (min-width: 1025px) {
+  .public-detail-aside {
+    position: sticky;
+    top: 0.75rem;
+    max-height: calc(100vh - 1.5rem);
+    overflow-y: auto;
+  }
+}
+
+.public-detail-aside-title {
+  margin-top: 0;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-title,
+.panel-title,
+.panel-title-plain {
+  color: var(--text);
+}
+
+.rating-card {
+  background: var(--bg);
+  border-color: var(--border);
+}
+
+.rating-card-org {
+  color: var(--text);
+}
+
+.ratings-grid {
+  gap: 1rem;
+}
+
+button:not(.filter-chip):not(.btn-text):not(.btn-secondary),
+button:not(.filter-chip):not(.btn-text):not(.btn-secondary) {
+  background: var(--ego-green);
+  color: #fff;
+}
+
+.login-panel .muted a {
+  color: var(--ego-green);
+  font-weight: 600;
+}
+
+.login-panel .muted a:hover {
+  color: var(--ego-green-dark);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.lead {
+  color: var(--muted);
+}

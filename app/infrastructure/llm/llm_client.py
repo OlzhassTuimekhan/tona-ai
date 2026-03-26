@@ -242,6 +242,52 @@ class LLMAnalyzer:
 
         return "\n".join(parts)
 
+    _CITIZEN_FEEDBACK_DEFAULTS: dict[str, str] = {
+        "was_there": "Я был на заседании / слышал своими ушами",
+        "work_done": "Вижу в жизни: работу сделали",
+        "dispute": "Здесь неточность или не так",
+    }
+
+    async def citizen_feedback_labels(self, context_text: str) -> dict[str, str]:
+        """Короткие подписи кнопок отзыва горожанина под контекст заседания / поручения."""
+        defaults = dict(self._CITIZEN_FEEDBACK_DEFAULTS)
+        system = """Ты генерируешь подписи для трёх кнопок гражданского отзыва о публичном заседании.
+
+Семантика ключей (не меняй ключи):
+- was_there: присутствие, личное участие или что слышал своими ушами на заседании
+- work_done: подтверждение, что поручение/работа реально выполнена (видно в жизни)
+- dispute: несогласие, ошибка или неточность в том, как сформулировано поручение/итог
+
+Верни JSON-объект с ключами was_there, work_done, dispute. Значения — короткие фразы на русском (до 90 символов), привязанные к переданному контексту. Без вложенных кавычек в строках."""
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model_fast,
+                response_format={"type": "json_object"},
+                max_tokens=400,
+                temperature=0.35,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": context_text[:12000]},
+                ],
+            )
+            raw = response.choices[0].message.content or "{}"
+            data = json.loads(raw)
+        except Exception as e:
+            logger.warning("citizen_feedback_labels LLM failed: %s", e)
+            return defaults
+
+        out = dict(defaults)
+        if not isinstance(data, dict):
+            return out
+        for k in out:
+            v = data.get(k)
+            if isinstance(v, str):
+                t = v.strip()
+                if t:
+                    out[k] = t[:120]
+        return out
+
     def _parse_response(self, raw: str, transcript: str, duration_seconds: float | None) -> AnalysisResult:
         try:
             data = json.loads(raw)

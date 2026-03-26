@@ -6,11 +6,56 @@ function navCls({ isActive }: { isActive: boolean }) {
   return 'app-nav-link' + (isActive ? ' active' : '')
 }
 
+function navClsEgov({ isActive }: { isActive: boolean }) {
+  return 'egov-nav-link' + (isActive ? ' active' : '')
+}
+
+function GuestHeader() {
+  return (
+    <header className="app-top-guest app-top-egov">
+      <div className="egov-header-top">
+        <NavLink to="/" className="app-brand app-brand-egov" style={{ textDecoration: 'none' }}>
+          JO<span>IS</span>
+        </NavLink>
+        <div className="egov-header-top-right">
+          <NavLink to="/login" className="egov-link-muted">
+            Войти
+          </NavLink>
+          <NavLink to="/register" className="egov-btn-outline">
+            Регистрация гражданина
+          </NavLink>
+        </div>
+      </div>
+      <nav className="egov-nav-strip" aria-label="Основное меню">
+        <NavLink to="/public" className={navClsEgov}>
+          Горожанам
+        </NavLink>
+        <NavLink to="/ratings" className={navClsEgov}>
+          Рейтинг
+        </NavLink>
+      </nav>
+    </header>
+  )
+}
+
 export default function AppLayout() {
   const { user, loading, logout } = useAuth()
   const loc = useLocation()
   const navigate = useNavigate()
   const isAuthPage = loc.pathname === '/login' || loc.pathname === '/register'
+
+  const p = loc.pathname
+  const shellCls =
+    p === '/public' ||
+    p === '/ratings' ||
+    p === '/dashboard' ||
+    p === '/analyze' ||
+    p === '/registry' ||
+    p.startsWith('/registry/')
+      ? 'shell-fluid'
+      : p.startsWith('/public/')
+        ? 'shell-fluid shell-detail-page'
+        : 'shell-wide'
 
   if (loading) {
     return <div className="auth-loading">Загрузка…</div>
@@ -19,21 +64,9 @@ export default function AppLayout() {
   if (isAuthPage) {
     return (
       <div className="app-root">
-        <header className="app-top-guest">
-          <NavLink to="/" className="app-brand" style={{ textDecoration: 'none' }}>
-            JO<span>IS</span>
-          </NavLink>
-          <nav>
-            <NavLink to="/public" className={navCls}>
-              Горожанам
-            </NavLink>
-            <NavLink to="/ratings" className={navCls}>
-              Рейтинг
-            </NavLink>
-          </nav>
-        </header>
+        <GuestHeader />
         <main className="app-main">
-          <div className="shell-wide">
+          <div className={shellCls}>
             <Outlet />
           </div>
         </main>
@@ -44,27 +77,9 @@ export default function AppLayout() {
   if (!user) {
     return (
       <div className="app-root">
-        <header className="app-top-guest">
-          <NavLink to="/" className="app-brand" style={{ textDecoration: 'none' }}>
-            JO<span>IS</span>
-          </NavLink>
-          <nav>
-            <NavLink to="/public" className={navCls}>
-              Горожанам
-            </NavLink>
-            <NavLink to="/ratings" className={navCls}>
-              Рейтинг
-            </NavLink>
-            <NavLink to="/login" className={navCls}>
-              Войти
-            </NavLink>
-            <NavLink to="/register" className={navCls}>
-              Регистрация гражданина
-            </NavLink>
-          </nav>
-        </header>
+        <GuestHeader />
         <main className="app-main">
-          <div className="shell-wide">
+          <div className={shellCls}>
             <Outlet />
           </div>
         </main>
@@ -80,55 +95,59 @@ export default function AppLayout() {
     <div className="app-root">
       <div className="app-body">
         <aside className="app-sidebar">
-          <NavLink to="/" className="app-brand" style={{ textDecoration: 'none' }}>
-            JO<span>IS</span>
-          </NavLink>
-          {isAdmin ? (
-            <NavLink to="/dashboard" className={navCls}>
-              Дашборд
+          <div className="app-sidebar-scroll">
+            <NavLink to="/" className="app-brand" style={{ textDecoration: 'none' }}>
+              JO<span>IS</span>
             </NavLink>
-          ) : null}
-          {isStaffOperator ? (
-            <>
-              <NavLink to="/analyze" className={navCls}>
-                Запись
+            {isAdmin ? (
+              <NavLink to="/dashboard" className={navCls}>
+                Дашборд
               </NavLink>
-              <NavLink to="/registry" className={navCls}>
-                Архив
-              </NavLink>
-            </>
-          ) : null}
-          <NavLink to="/public" className={navCls}>
-            Горожанам
-          </NavLink>
-          <NavLink to="/ratings" className={navCls}>
-            Рейтинг
-          </NavLink>
-          {isAdmin ? (
-            <NavLink to="/admin/users" className={navCls}>
-              Пользователи
+            ) : null}
+            {isStaffOperator ? (
+              <>
+                <NavLink to="/analyze" className={navCls}>
+                  Запись
+                </NavLink>
+                <NavLink to="/registry" className={navCls}>
+                  Архив
+                </NavLink>
+              </>
+            ) : null}
+            <NavLink to="/public" className={navCls}>
+              Горожанам
             </NavLink>
-          ) : null}
-          <NavLink to="/profile" className={navCls}>
-            Профиль
-          </NavLink>
-          <div style={{ marginTop: 'auto', padding: '0.75rem', fontSize: '0.8rem', color: 'var(--muted)' }}>
-            <span className={`role-pill ${role}`}>{role}</span>
-            <div style={{ marginTop: 6 }}>{user.username}</div>
+            <NavLink to="/ratings" className={navCls}>
+              Рейтинг
+            </NavLink>
+            {isAdmin ? (
+              <NavLink to="/admin/users" className={navCls}>
+                Пользователи
+              </NavLink>
+            ) : null}
+            <NavLink to="/profile" className={navCls}>
+              Профиль
+            </NavLink>
           </div>
-          <button
-            type="button"
-            className="app-nav-link"
-            onClick={() => {
-              logout()
-              navigate('/public')
-            }}
-          >
-            Выйти
-          </button>
+          <div className="app-sidebar-footer">
+            <div className="app-sidebar-user">
+              <span className={`role-pill ${role}`}>{role}</span>
+              <div className="app-sidebar-username">{user.username}</div>
+            </div>
+            <button
+              type="button"
+              className="app-nav-link app-sidebar-logout"
+              onClick={() => {
+                logout()
+                navigate('/public')
+              }}
+            >
+              Выйти
+            </button>
+          </div>
         </aside>
         <main className="app-main">
-          <div className="shell-wide">
+          <div className={shellCls}>
             <Outlet />
           </div>
         </main>

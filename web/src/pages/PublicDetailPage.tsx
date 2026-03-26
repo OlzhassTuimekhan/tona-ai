@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { addPublicObservation, getPublicSession, type PublicSessionView } from '@/api/client'
+import {
+  addPublicObservation,
+  fetchFeedbackOptionLabels,
+  getPublicSession,
+  type FeedbackOptionLabels,
+  type PublicSessionView,
+} from '@/api/client'
 import {
   DeadlineBadge,
   FulfillmentBadge,
@@ -14,6 +20,12 @@ import {
   requestMicrophoneAudio,
 } from '@/utils/mic'
 import { pickRecorderMime } from '@/utils/recorder'
+
+const FEEDBACK_LABELS_DEFAULT: FeedbackOptionLabels = {
+  was_there: 'Я был на заседании / слышал своими ушами',
+  work_done: 'Вижу в жизни: работу сделали',
+  dispute: 'Здесь неточность или не так',
+}
 
 export default function PublicDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -35,6 +47,9 @@ export default function PublicDetailPage() {
   const [obsVoiceBlob, setObsVoiceBlob] = useState<Blob | null>(null)
   const [obsVoiceLabel, setObsVoiceLabel] = useState<string | null>(null)
   const [obsSubmitting, setObsSubmitting] = useState(false)
+
+  const [feedbackLabels, setFeedbackLabels] = useState<FeedbackOptionLabels | null>(null)
+  const [feedbackLabelsLoading, setFeedbackLabelsLoading] = useState(false)
 
   const micEnvHint = useMemo(() => getRecordingEnvironmentHint(), [])
 
@@ -62,7 +77,28 @@ export default function PublicDetailPage() {
     setObsRecSec(0)
     setObsRecording(false)
     setObsCommitTarget('all')
+    setFeedbackLabels(null)
   }, [id])
+
+  useEffect(() => {
+    if (!id || !publicDoc) return
+    let cancelled = false
+    const target = obsCommitTarget === 'all' ? 'all' : obsCommitTarget
+    setFeedbackLabelsLoading(true)
+    fetchFeedbackOptionLabels(id, target)
+      .then((labels) => {
+        if (!cancelled) setFeedbackLabels(labels)
+      })
+      .catch(() => {
+        if (!cancelled) setFeedbackLabels(null)
+      })
+      .finally(() => {
+        if (!cancelled) setFeedbackLabelsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id, publicDoc, obsCommitTarget])
 
   useEffect(() => {
     if (!obsRecording) return
@@ -191,7 +227,7 @@ export default function PublicDetailPage() {
   }
 
   return (
-    <section className="panel panel-citizen">
+    <section className="panel panel-citizen public-detail">
       {publicErr ? <p className="error panel-inline-err">{publicErr}</p> : null}
       <div className="row space-between citizen-toolbar">
         <Link to="/public" className="btn-text">
@@ -201,135 +237,138 @@ export default function PublicDetailPage() {
       {!publicDoc ? (
         <p className="muted">Загрузка…</p>
       ) : (
-        <>
-          <h2 className="panel-title panel-title-plain">{publicDoc.title}</h2>
-          {publicDoc.public_org ? <p className="public-lead">{publicDoc.public_org}</p> : null}
-          <p className="summary-text citizen-summary">{publicDoc.summary || '—'}</p>
-          <details className="tech-fold">
-            <summary>Служебный номер карточки</summary>
-            <p className="meta">
-              <code>{publicDoc.id}</code>
-            </p>
-          </details>
-          <h3 className="subh subh-plain">Поручения по отдельности</h3>
-          {(publicDoc.deadlines_overdue ?? 0) > 0 ? (
-            <p className="overdue-summary">
-              {publicDoc.deadlines_overdue} из {publicCommitments.length} поручений просрочено
-            </p>
-          ) : null}
-          {publicCommitments.length === 0 ? (
-            <p className="muted">
-              В этой записи нет разбивки на пункты — отзыв будет только «ко всему заседанию».
-            </p>
-          ) : (
-            <div className="commitment-cards">
-              {publicCommitments.map((c, i) => (
-                <article
-                  key={i}
-                  className={[
-                    'commitment-card',
-                    obsCommitTarget === i ? 'commitment-card-selected' : '',
-                    c.deadline_status === 'overdue' ? 'commitment-card-overdue' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  id={`commit-${i}`}
-                >
-                  <div className="commitment-card-head">
-                    <span className="commitment-num">Пункт {i + 1}</span>
-                    {typeof c.deadline_status === 'string' && c.deadline_status !== 'no_deadline' ? (
-                      <DeadlineBadge status={c.deadline_status as string} deadline={String(c.deadline ?? '')} />
-                    ) : null}
-                  </div>
-                  <p className="commitment-body">{String(c.description ?? '—')}</p>
-                  <FulfillmentBadge
-                    fulfillment={String(c.fulfillment_status ?? 'pending')}
-                    deadlineStatus={String(c.deadline_status ?? '')}
-                  />
-                  <p className="commitment-meta small">{String(c.responsible ?? '—')}</p>
-                  <button
-                    type="button"
-                    className="btn-commit-target"
-                    onClick={() => {
-                      setObsCommitTarget(i)
-                      window.setTimeout(() => {
-                        document.getElementById('citizen-reply')?.scrollIntoView({
-                          behavior: 'smooth',
-                          block: 'start',
-                        })
-                      }, 0)
-                    }}
+        <div className="public-detail-layout">
+          <div className="public-detail-main">
+            <h2 className="panel-title panel-title-plain">{publicDoc.title}</h2>
+            {publicDoc.public_org ? <p className="public-lead">{publicDoc.public_org}</p> : null}
+            <p className="summary-text citizen-summary">{publicDoc.summary || '—'}</p>
+            <details className="tech-fold">
+              <summary>Служебный номер карточки</summary>
+              <p className="meta">
+                <code>{publicDoc.id}</code>
+              </p>
+            </details>
+            <h3 className="subh subh-plain">Поручения по отдельности</h3>
+            {(publicDoc.deadlines_overdue ?? 0) > 0 ? (
+              <p className="overdue-summary">
+                {publicDoc.deadlines_overdue} из {publicCommitments.length} поручений просрочено
+              </p>
+            ) : null}
+            {publicCommitments.length === 0 ? (
+              <p className="muted">
+                В этой записи нет разбивки на пункты — отзыв будет только «ко всему заседанию».
+              </p>
+            ) : (
+              <div className="commitment-cards">
+                {publicCommitments.map((c, i) => (
+                  <article
+                    key={i}
+                    className={[
+                      'commitment-card',
+                      obsCommitTarget === i ? 'commitment-card-selected' : '',
+                      c.deadline_status === 'overdue' ? 'commitment-card-overdue' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    id={`commit-${i}`}
                   >
-                    Мой отзыв к этому пункту
-                  </button>
-                </article>
-              ))}
-            </div>
-          )}
-          {publicDoc.rating ? (
-            <div className="session-rating-box">
-              <RatingBadge rating={publicDoc.rating} size="large" />
-              <span className="rating-stats">
-                Отзывов: {publicDoc.rating.total} · Положительных: {publicDoc.rating.positive} · Оспариваний:{' '}
-                {publicDoc.rating.negative}
-              </span>
-            </div>
-          ) : null}
-
-          <h3 className="subh subh-plain">Что уже написали люди</h3>
-          {publicObs.length === 0 ? (
-            <p className="muted">Пока никто не отметился.</p>
-          ) : (
-            <ul className="obs-list">
-              {publicObs.map((o, i) => (
-                <li key={String(o.id ?? `obs-${i}`)} className={o.has_photo ? 'obs-item obs-with-photo' : 'obs-item'}>
-                  {!!o.has_photo && <span className="obs-photo-badge">С фото</span>}
-                  <span className="muted nowrap">
-                    {o.created_at ? new Date(String(o.created_at)).toLocaleString() : ''}
-                  </span>{' '}
-                  <strong>
-                    {o.observation_type === 'was_there'
-                      ? 'На встрече / слышал'
-                      : o.observation_type === 'work_done'
-                        ? 'Работа сделана'
-                        : o.observation_type === 'dispute'
-                          ? 'Оспаривание'
-                          : String(o.observation_type)}
-                  </strong>
-                  {o.observer_display ? (
-                    <span className="muted"> · {String(o.observer_display)}</span>
-                  ) : null}
-                  {o.commitment_index == null ? (
-                    <span className="obs-scope"> · ко всему заседанию</span>
-                  ) : publicCommitments[Number(o.commitment_index)] ? (
-                    <span className="obs-scope">
-                      {' '}
-                      · пункт {Number(o.commitment_index) + 1}:{' '}
-                      {truncateText(
-                        String(publicCommitments[Number(o.commitment_index)]?.description ?? ''),
-                        70,
-                      )}
-                    </span>
-                  ) : (
-                    <span className="obs-scope"> · пункт №{String(o.commitment_index)}</span>
-                  )}
-                  {o.note ? <> — {String(o.note)}</> : null}
-                  {o.photo_url ? (
-                    <div className="obs-photo-block">
-                      <a href={String(o.photo_url)} target="_blank" rel="noreferrer">
-                        <img src={String(o.photo_url)} alt="Фото к отзыву" className="obs-photo-thumb" />
-                      </a>
+                    <div className="commitment-card-head">
+                      <span className="commitment-num">Пункт {i + 1}</span>
+                      {typeof c.deadline_status === 'string' && c.deadline_status !== 'no_deadline' ? (
+                        <DeadlineBadge status={c.deadline_status as string} deadline={String(c.deadline ?? '')} />
+                      ) : null}
                     </div>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
+                    <p className="commitment-body">{String(c.description ?? '—')}</p>
+                    <FulfillmentBadge
+                      fulfillment={String(c.fulfillment_status ?? 'pending')}
+                      deadlineStatus={String(c.deadline_status ?? '')}
+                    />
+                    <p className="commitment-meta small">{String(c.responsible ?? '—')}</p>
+                    <button
+                      type="button"
+                      className="btn-commit-target"
+                      onClick={() => {
+                        setObsCommitTarget(i)
+                        window.setTimeout(() => {
+                          document.getElementById('citizen-reply')?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start',
+                          })
+                        }, 0)
+                      }}
+                    >
+                      Мой отзыв к этому пункту
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+            {publicDoc.rating ? (
+              <div className="session-rating-box">
+                <RatingBadge rating={publicDoc.rating} size="large" />
+                <span className="rating-stats">
+                  Отзывов: {publicDoc.rating.total} · Положительных: {publicDoc.rating.positive} · Оспариваний:{' '}
+                  {publicDoc.rating.negative}
+                </span>
+              </div>
+            ) : null}
 
-          <h3 className="subh subh-plain" id="citizen-reply">
-            Ваш ответ
-          </h3>
-          <div className="obs-form">
+            <h3 className="subh subh-plain">Что уже написали люди</h3>
+            {publicObs.length === 0 ? (
+              <p className="muted">Пока никто не отметился.</p>
+            ) : (
+              <ul className="obs-list">
+                {publicObs.map((o, i) => (
+                  <li key={String(o.id ?? `obs-${i}`)} className={o.has_photo ? 'obs-item obs-with-photo' : 'obs-item'}>
+                    {!!o.has_photo && <span className="obs-photo-badge">С фото</span>}
+                    <span className="muted nowrap">
+                      {o.created_at ? new Date(String(o.created_at)).toLocaleString() : ''}
+                    </span>{' '}
+                    <strong>
+                      {o.observation_type === 'was_there'
+                        ? 'На встрече / слышал'
+                        : o.observation_type === 'work_done'
+                          ? 'Работа сделана'
+                          : o.observation_type === 'dispute'
+                            ? 'Оспаривание'
+                            : String(o.observation_type)}
+                    </strong>
+                    {o.observer_display ? (
+                      <span className="muted"> · {String(o.observer_display)}</span>
+                    ) : null}
+                    {o.commitment_index == null ? (
+                      <span className="obs-scope"> · ко всему заседанию</span>
+                    ) : publicCommitments[Number(o.commitment_index)] ? (
+                      <span className="obs-scope">
+                        {' '}
+                        · пункт {Number(o.commitment_index) + 1}:{' '}
+                        {truncateText(
+                          String(publicCommitments[Number(o.commitment_index)]?.description ?? ''),
+                          70,
+                        )}
+                      </span>
+                    ) : (
+                      <span className="obs-scope"> · пункт №{String(o.commitment_index)}</span>
+                    )}
+                    {o.note ? <> — {String(o.note)}</> : null}
+                    {o.photo_url ? (
+                      <div className="obs-photo-block">
+                        <a href={String(o.photo_url)} target="_blank" rel="noreferrer">
+                          <img src={String(o.photo_url)} alt="Фото к отзыву" className="obs-photo-thumb" />
+                        </a>
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <aside className="public-detail-aside" aria-label="Форма ответа">
+            <h3 className="subh subh-plain public-detail-aside-title" id="citizen-reply">
+              Ваш ответ
+            </h3>
+            <div className="obs-form">
             <input
               type="text"
               name="website"
@@ -363,27 +402,32 @@ export default function PublicDetailPage() {
               ))}
             </div>
             <p className="field-hint">Что вы хотите сказать по выбранному</p>
+            {feedbackLabelsLoading ? (
+              <p className="muted small" style={{ marginBottom: '0.35rem' }}>
+                Подбираем формулировки под выбранный пункт…
+              </p>
+            ) : null}
             <div className="choice-grid" role="group" aria-label="Тип ответа">
               <button
                 type="button"
                 className={obsType === 'was_there' ? 'choice-btn active' : 'choice-btn'}
                 onClick={() => setObsType('was_there')}
               >
-                Я был на заседании / слышал своими ушами
+                {(feedbackLabels ?? FEEDBACK_LABELS_DEFAULT).was_there}
               </button>
               <button
                 type="button"
                 className={obsType === 'work_done' ? 'choice-btn active' : 'choice-btn'}
                 onClick={() => setObsType('work_done')}
               >
-                Вижу в жизни: работу сделали
+                {(feedbackLabels ?? FEEDBACK_LABELS_DEFAULT).work_done}
               </button>
               <button
                 type="button"
                 className={obsType === 'dispute' ? 'choice-btn active' : 'choice-btn'}
                 onClick={() => setObsType('dispute')}
               >
-                Здесь неточность или не так
+                {(feedbackLabels ?? FEEDBACK_LABELS_DEFAULT).dispute}
               </button>
             </div>
             <label className="field field-plain">
@@ -469,7 +513,8 @@ export default function PublicDetailPage() {
               ) : null}
             </div>
           </div>
-        </>
+          </aside>
+        </div>
       )}
     </section>
   )

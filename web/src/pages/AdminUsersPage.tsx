@@ -80,7 +80,7 @@ export default function AdminUsersPage() {
         <div className="admin-form-grid admin-form-grid--two">
           <label className="field">
             <span>Логин</span>
-            <input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} />
+            <input type="text" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} />
           </label>
           <label className="field">
             <span>Пароль</span>
@@ -98,15 +98,20 @@ export default function AdminUsersPage() {
           </label>
           <label className="field">
             <span>Организация</span>
-            <input value={newOrg} onChange={(e) => setNewOrg(e.target.value)} placeholder="Акимат г. …" />
+            <input
+              type="text"
+              value={newOrg}
+              onChange={(e) => setNewOrg(e.target.value)}
+              placeholder="Акимат г. …"
+            />
           </label>
           <label className="field">
             <span>Город</span>
-            <input value={newCity} onChange={(e) => setNewCity(e.target.value)} />
+            <input type="text" value={newCity} onChange={(e) => setNewCity(e.target.value)} />
           </label>
           <label className="field">
             <span>Регион</span>
-            <input value={newRegion} onChange={(e) => setNewRegion(e.target.value)} />
+            <input type="text" value={newRegion} onChange={(e) => setNewRegion(e.target.value)} />
           </label>
         </div>
         <button

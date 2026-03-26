@@ -39,6 +39,18 @@ export function isSecureRecordingContext(): boolean {
   return window.isSecureContext === true
 }
 
+/** Если страница по HTTP с IP (не localhost), подсказать тот же путь на HTTPS (docker: порт 8443). */
+export function suggestedHttpsRecordingUrl(): string | null {
+  if (typeof window === 'undefined') return null
+  if (window.isSecureContext) return null
+  if (window.location.protocol !== 'http:') return null
+  const { hostname } = window.location
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return null
+  const httpsPort = import.meta.env.VITE_HTTPS_PORT ?? '8443'
+  const { pathname, search, hash } = window.location
+  return `https://${hostname}:${httpsPort}${pathname}${search}${hash}`
+}
+
 export function isMediaRecorderAvailable(): boolean {
   return typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function'
 }
@@ -47,7 +59,11 @@ export function isMediaRecorderAvailable(): boolean {
 export function getRecordingEnvironmentHint(): string | null {
   if (typeof window === 'undefined') return null
   if (!isSecureRecordingContext()) {
-    return 'Запись с микрофона в этом браузере доступна только по HTTPS или на localhost. По HTTP с IP-адреса в сети — загрузите файл или откройте сайт с SSL.'
+    const link = suggestedHttpsRecordingUrl()
+    const tail = link
+      ? ` Откройте эту же страницу по ссылке: ${link}`
+      : ''
+    return `Запись с микрофона в этом браузере доступна только по HTTPS или на localhost. По HTTP с IP-адреса в сети — загрузите файл или откройте сайт с SSL.${tail}`
   }
   if (!getUserMediaImpl()) {
     return 'Браузер не отдаёт доступ к микрофону (нет API). Загрузите аудиофайл или обновите браузер.'

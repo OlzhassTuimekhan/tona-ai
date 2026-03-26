@@ -72,27 +72,27 @@ export default function ProfilePage() {
       <div className="admin-form-grid admin-form-grid--two profile-form-grid">
         <label className="field">
           <span>Имя</span>
-          <input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
         </label>
         <label className="field">
           <span>Фамилия</span>
-          <input value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} />
         </label>
         <label className="field">
           <span>Район</span>
-          <input value={district} onChange={(e) => setDistrict(e.target.value)} />
+          <input type="text" value={district} onChange={(e) => setDistrict(e.target.value)} />
         </label>
         <label className="field">
           <span>Город</span>
-          <input value={city} onChange={(e) => setCity(e.target.value)} />
+          <input type="text" value={city} onChange={(e) => setCity(e.target.value)} />
         </label>
         <label className="field">
           <span>Область / регион</span>
-          <input value={region} onChange={(e) => setRegion(e.target.value)} />
+          <input type="text" value={region} onChange={(e) => setRegion(e.target.value)} />
         </label>
         <label className="field">
           <span>Телефон</span>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </label>
       </div>
       <button type="button" className="btn-block profile-save-btn" disabled={busy} onClick={() => void save()}>

@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from app.api.deps import get_optional_user, get_registry, get_registry_service
 from app.infrastructure.persistence.protocol import RegistryStore
-from app.application.factories import build_soniox
+from app.application.factories import build_llm, build_soniox
 from app.application.registry_service import RegistryService
 from app.application.voice_human_check import transcript_confirms_not_robot
 from app.core.config import settings
@@ -170,6 +170,70 @@ def get_public_session(
     if not view:
         raise HTTPException(status_code=404, detail="not_found_or_not_published")
     return view
+
+
+@router.get("/sessions/{session_id}/feedback-options")
+async def get_feedback_options(
+    session_id: str,
+    target: str = "all",
+    svc: RegistryService = Depends(get_registry_service),
+):
+    """
+    Подписи для трёх кнопок типа отзыва под контекст заседания или выбранного поручения.
+    target: all | 0 | 1 | 2 | … (индекс поручения)
+    """
+    view = svc.get_public_session(session_id)
+    if not view:
+        raise HTTPException(status_code=404, detail="not_found_or_not_published")
+
+    commitments = view.get("commitments") or []
+    if not isinstance(commitments, list):
+        commitments = []
+
+    title = (view.get("title") or "").strip()
+    summary = (view.get("summary") or "").strip()
+    org = (view.get("public_org") or "").strip()
+    city = (view.get("city") or "").strip()
+
+    lines = [
+        f"Заголовок: {title}",
+        f"Орган: {org or '—'}",
+        f"Город: {city or '—'}",
+        f"Резюме заседания:\n{summary[:6000]}",
+    ]
+
+    tnorm = (target or "all").strip().lower()
+    if tnorm in ("", "all", "whole"):
+        lines.append(
+            "Область отзыва: ко всему заседанию целиком (не к одному пункту списка поручений).",
+        )
+    else:
+        try:
+            idx = int(tnorm)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="invalid_target") from e
+        if idx < 0 or idx >= len(commitments):
+            raise HTTPException(status_code=400, detail="commitment_index_out_of_range")
+        c = commitments[idx]
+        if not isinstance(c, dict):
+            c = {}
+        desc = (c.get("description") or "").strip()
+        quote = (c.get("quote") or "").strip()
+        resp = (c.get("responsible") or "").strip()
+        dl = c.get("deadline")
+        lines.append(f"Область отзыва: только к поручению №{idx + 1}.")
+        lines.append(f"Текст поручения: {desc[:3000]}")
+        if quote:
+            lines.append(f"Цитата из записи: {quote[:2000]}")
+        if resp:
+            lines.append(f"Ответственный (если указан): {resp}")
+        if dl:
+            lines.append(f"Срок (если указан): {dl}")
+
+    context = "\n\n".join(lines)
+    llm = build_llm(settings)
+    labels = await llm.citizen_feedback_labels(context)
+    return {"labels": labels}
 
 
 def _save_photo(upload: UploadFile) -> str:

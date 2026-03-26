@@ -1,27 +1,67 @@
 .app-root {
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   font-family: var(--font);
   background: var(--bg);
   color: var(--text);
+  overflow: hidden;
 }
 
 .app-body {
   display: flex;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .app-sidebar {
   width: var(--sidebar-width);
   flex-shrink: 0;
-  background: linear-gradient(180deg, #1e1831 0%, #151122 100%);
+  background: linear-gradient(180deg, #f8faf9 0%, #eef5f1 100%);
   border-right: 1px solid var(--border);
   padding: 1rem 0.75rem;
   display: flex;
   flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.app-sidebar-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
   gap: 0.25rem;
+  padding-bottom: 0.5rem;
+}
+
+.app-sidebar-footer {
+  flex-shrink: 0;
+  padding-top: 0.75rem;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.app-sidebar-user {
+  padding: 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.app-sidebar-username {
+  margin-top: 0.35rem;
+}
+
+.app-sidebar-logout {
+  margin-top: 0;
 }
 
 .app-brand {
@@ -33,7 +73,7 @@
 }
 
 .app-brand span {
-  color: var(--accent);
+  color: var(--ego-green);
 }
 
 .app-nav-link {
@@ -54,18 +94,20 @@
 
 .app-nav-link:hover {
   color: var(--text);
-  background: rgba(139, 73, 231, 0.12);
+  background: var(--ego-green-soft);
 }
 
 .app-nav-link.active {
   color: #fff;
-  background: rgba(139, 73, 231, 0.28);
+  background: var(--ego-green);
 }
 
 .app-main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   overflow: auto;
+  background: var(--bg);
 }
 
 .shell-wide {
@@ -74,7 +116,13 @@
   padding: 1.5rem 1.25rem 3rem;
 }
 
-/* Гостевой режим: шапка как на лендинге — логотип слева, пункты в ряд справа */
+.shell-fluid {
+  max-width: none;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 3rem;
+}
+
 .app-top-guest {
   display: flex;
   flex-direction: row;
@@ -84,7 +132,7 @@
   gap: 0.75rem 1rem;
   padding: 0.85rem 1.25rem;
   border-bottom: 1px solid var(--border);
-  background: rgba(30, 24, 49, 0.5);
+  background: var(--bg);
 }
 
 .app-top-guest .app-brand {
@@ -131,16 +179,16 @@
 }
 
 .role-pill.admin {
-  background: rgba(139, 73, 231, 0.35);
-  color: #e9d5ff;
+  background: var(--ego-green-soft);
+  color: var(--ego-green-dark);
 }
 
 .role-pill.akim {
-  background: rgba(59, 130, 246, 0.3);
-  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.15);
+  color: #1d4ed8;
 }
 
 .role-pill.citizen {
-  background: rgba(34, 197, 94, 0.25);
-  color: #bbf7d0;
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--ego-green-dark);
 }

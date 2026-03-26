@@ -379,6 +379,26 @@ export async function getPublicSession(
   return r.json()
 }
 
+/** Подписи кнопок отзыва под контекст (генерирует LLM на бэкенде). */
+export type FeedbackOptionLabels = {
+  was_there: string
+  work_done: string
+  dispute: string
+}
+
+export async function fetchFeedbackOptionLabels(
+  sessionId: string,
+  target: 'all' | number,
+): Promise<FeedbackOptionLabels> {
+  const t = target === 'all' ? 'all' : String(target)
+  const r = await fetch(
+    `${API}/public/sessions/${encodeURIComponent(sessionId)}/feedback-options?target=${encodeURIComponent(t)}`,
+  )
+  if (!r.ok) throw new Error(`feedback-options: ${r.status}`)
+  const data = (await r.json()) as { labels: FeedbackOptionLabels }
+  return data.labels
+}
+
 export async function fetchCities(): Promise<{ cities: string[]; regions: string[]; orgs: string[] }> {
   const r = await fetch(`${API}/public/cities`)
   if (!r.ok) throw new Error(`cities: ${r.status}`)

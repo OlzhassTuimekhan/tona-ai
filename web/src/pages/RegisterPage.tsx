@@ -49,7 +49,12 @@ export default function RegisterPage() {
       <div className="admin-form-grid">
         <label className="field">
           <span>Логин</span>
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+          />
         </label>
         <label className="field">
           <span>Пароль (не короче 6 символов)</span>
@@ -62,27 +67,42 @@ export default function RegisterPage() {
         </label>
         <label className="field">
           <span>Имя</span>
-          <input value={firstName} onChange={(e) => setFirstName(e.target.value)} autoComplete="given-name" />
+          <input
+            type="text"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            autoComplete="given-name"
+          />
         </label>
         <label className="field">
           <span>Фамилия</span>
-          <input value={lastName} onChange={(e) => setLastName(e.target.value)} autoComplete="family-name" />
+          <input
+            type="text"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            autoComplete="family-name"
+          />
         </label>
         <label className="field">
           <span>Район</span>
-          <input value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="Например: Алмалинский" />
+          <input
+            type="text"
+            value={district}
+            onChange={(e) => setDistrict(e.target.value)}
+            placeholder="Например: Алмалинский"
+          />
         </label>
         <label className="field">
           <span>Город (необязательно)</span>
-          <input value={city} onChange={(e) => setCity(e.target.value)} />
+          <input type="text" value={city} onChange={(e) => setCity(e.target.value)} />
         </label>
         <label className="field">
           <span>Область / регион (необязательно)</span>
-          <input value={region} onChange={(e) => setRegion(e.target.value)} />
+          <input type="text" value={region} onChange={(e) => setRegion(e.target.value)} />
         </label>
         <label className="field">
           <span>Телефон (необязательно)</span>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" />
+          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" />
         </label>
       </div>
       <button
