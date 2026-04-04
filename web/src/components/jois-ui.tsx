@@ -60,9 +60,12 @@ export function FulfillmentBadge({
 export function CommitmentsEvidenceTable({
   commitments,
   emptyLabel = 'Нет поручений.',
+  onSeek,
 }: {
   commitments: Record<string, unknown>[]
   emptyLabel?: string
+  /** Если задан и у поручения есть timestamp_start (сек), показываем переход к моменту в записи */
+  onSeek?: (seconds: number) => void
 }) {
   if (commitments.length === 0) {
     return <p className="muted">{emptyLabel}</p>
@@ -76,6 +79,7 @@ export function CommitmentsEvidenceTable({
           <th>Срок</th>
           <th>Цитата</th>
           <th>Сверка</th>
+          {onSeek ? <th className="narrow-col">Запись</th> : null}
         </tr>
       </thead>
       <tbody>
@@ -84,6 +88,8 @@ export function CommitmentsEvidenceTable({
           const isOverdue = ds === 'overdue'
           const isFulfilled =
             ds === 'fulfilled' || String(c.fulfillment_status ?? '') === 'fulfilled'
+          const ts = c.timestamp_start
+          const canSeek = onSeek && typeof ts === 'number' && Number.isFinite(ts)
           return (
             <tr key={i} className={isOverdue ? 'row-overdue' : isFulfilled ? 'row-fulfilled' : ''}>
               <td>{String(c.description ?? '—')}</td>
@@ -103,6 +109,22 @@ export function CommitmentsEvidenceTable({
                   <span className="badge">—</span>
                 )}
               </td>
+              {onSeek ? (
+                <td className="narrow-col">
+                  {canSeek ? (
+                    <button
+                      type="button"
+                      className="btn-seek-audio"
+                      title="Перейти к моменту в записи"
+                      onClick={() => onSeek(Number(ts))}
+                    >
+                      ▶
+                    </button>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </td>
+              ) : null}
             </tr>
           )
         })}

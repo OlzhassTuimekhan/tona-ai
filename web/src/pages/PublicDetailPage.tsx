@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   addPublicObservation,
@@ -7,6 +7,10 @@ import {
   type FeedbackOptionLabels,
   type PublicSessionView,
 } from '@/api/client'
+import {
+  DiarizedTranscriptPlayer,
+  parseTranscriptSegments,
+} from '@/components/DiarizedTranscriptPlayer'
 import {
   DeadlineBadge,
   FulfillmentBadge,
@@ -39,6 +43,7 @@ export default function PublicDetailPage() {
   const [obsPhotoPreview, setObsPhotoPreview] = useState<string | null>(null)
   const [obsHp, setObsHp] = useState('')
 
+  const publicAudioRef = useRef<HTMLAudioElement>(null)
   const obsRecRef = useRef<MediaRecorder | null>(null)
   const obsChunksRef = useRef<BlobPart[]>([])
   const obsStreamRef = useRef<MediaStream | null>(null)
@@ -215,6 +220,13 @@ export default function PublicDetailPage() {
     }
   }
 
+  const seekPublicAudio = useCallback((seconds: number) => {
+    const el = publicAudioRef.current
+    if (!el) return
+    el.currentTime = Math.max(0, seconds)
+    void el.play().catch(() => {})
+  }, [])
+
   const publicCommitments = Array.isArray(publicDoc?.commitments)
     ? (publicDoc!.commitments as Record<string, unknown>[])
     : []
@@ -242,6 +254,26 @@ export default function PublicDetailPage() {
             <h2 className="panel-title panel-title-plain">{publicDoc.title}</h2>
             {publicDoc.public_org ? <p className="public-lead">{publicDoc.public_org}</p> : null}
             <p className="summary-text citizen-summary">{publicDoc.summary || '—'}</p>
+            {(publicDoc.playback_url ||
+              (Array.isArray(publicDoc.transcript_segments) && publicDoc.transcript_segments.length > 0)) && (
+              <>
+                <h3 className="subh subh-plain">Запись заседания</h3>
+                <p className="muted small">
+                  Нажмите на фрагмент или «В запись» у пункта — воспроизведение с нужного момента.
+                </p>
+                <DiarizedTranscriptPlayer
+                  audioRef={publicAudioRef}
+                  playbackSrc={
+                    typeof publicDoc.playback_url === 'string' && publicDoc.playback_url.trim()
+                      ? publicDoc.playback_url.trim()
+                      : null
+                  }
+                  segments={parseTranscriptSegments({
+                    transcript_segments: publicDoc.transcript_segments,
+                  })}
+                />
+              </>
+            )}
             <details className="tech-fold">
               <summary>Служебный номер карточки</summary>
               <p className="meta">
@@ -284,21 +316,35 @@ export default function PublicDetailPage() {
                       deadlineStatus={String(c.deadline_status ?? '')}
                     />
                     <p className="commitment-meta small">{String(c.responsible ?? '—')}</p>
-                    <button
-                      type="button"
-                      className="btn-commit-target"
-                      onClick={() => {
-                        setObsCommitTarget(i)
-                        window.setTimeout(() => {
-                          document.getElementById('citizen-reply')?.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'start',
-                          })
-                        }, 0)
-                      }}
-                    >
-                      Мой отзыв к этому пункту
-                    </button>
+                    <div className="commitment-card-actions">
+                      {typeof publicDoc.playback_url === 'string' &&
+                      publicDoc.playback_url.trim() &&
+                      typeof c.timestamp_start === 'number' &&
+                      Number.isFinite(c.timestamp_start) ? (
+                        <button
+                          type="button"
+                          className="btn-secondary btn-seek-inline"
+                          onClick={() => seekPublicAudio(Number(c.timestamp_start))}
+                        >
+                          В запись ▶
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="btn-commit-target"
+                        onClick={() => {
+                          setObsCommitTarget(i)
+                          window.setTimeout(() => {
+                            document.getElementById('citizen-reply')?.scrollIntoView({
+                              behavior: 'smooth',
+                              block: 'start',
+                            })
+                          }, 0)
+                        }}
+                      >
+                        Мой отзыв к этому пункту
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>

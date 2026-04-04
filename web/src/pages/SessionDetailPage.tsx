@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   getRegistrySession,
@@ -6,6 +6,11 @@ import {
   setCommitmentStatus,
   type RegistrySessionDoc,
 } from '@/api/client'
+import {
+  DiarizedTranscriptPlayer,
+  parseTranscriptSegments,
+  resolvePlaybackUrlFromPayload,
+} from '@/components/DiarizedTranscriptPlayer'
 import { CommitmentsEvidenceTable, DeadlineBadge, truncateText } from '@/components/jois-ui'
 import { useAuth } from '@/context/AuthContext'
 
@@ -20,6 +25,7 @@ export default function SessionDetailPage() {
   const [pubOrg, setPubOrg] = useState('')
   const [pubPublished, setPubPublished] = useState(false)
   const [pubSaving, setPubSaving] = useState(false)
+  const audioRef = useRef<HTMLAudioElement>(null)
 
   useEffect(() => {
     if (!id) return
@@ -67,6 +73,18 @@ export default function SessionDetailPage() {
   const commitments = Array.isArray(payload?.commitments)
     ? (payload!.commitments as Record<string, unknown>[])
     : []
+  const playbackSrc = resolvePlaybackUrlFromPayload(payload)
+  const transcriptSegments = parseTranscriptSegments(payload)
+
+  const seekTo = useCallback(
+    (seconds: number) => {
+      const el = audioRef.current
+      if (!el) return
+      el.currentTime = Math.max(0, seconds)
+      void el.play().catch(() => {})
+    },
+    [],
+  )
 
   if (!id) {
     return <p className="muted">Нет id</p>
@@ -90,8 +108,25 @@ export default function SessionDetailPage() {
             {sessionDoc.public_org ? ` · ${sessionDoc.public_org}` : ''}
           </p>
           <p className="summary-text">{(payload?.summary as string) || '—'}</p>
+          {(playbackSrc || transcriptSegments.length > 0) && (
+            <>
+              <h3 className="subh">Запись и таймкоды (диаризация)</h3>
+              <p className="muted small">
+                Клик по фрагменту или по ▶ у поручения с таймкодом — переход к моменту в аудио.
+              </p>
+              <DiarizedTranscriptPlayer
+                audioRef={audioRef}
+                playbackSrc={playbackSrc}
+                segments={transcriptSegments}
+              />
+            </>
+          )}
           <h3 className="subh">Поручения и доказательства</h3>
-          <CommitmentsEvidenceTable commitments={commitments} emptyLabel="Нет блока commitments." />
+          <CommitmentsEvidenceTable
+            commitments={commitments}
+            emptyLabel="Нет блока commitments."
+            onSeek={playbackSrc ? seekTo : undefined}
+          />
           {commitments.length > 0 ? (
             <div className="fulfill-controls">
               <h3 className="subh">Статус выполнения</h3>

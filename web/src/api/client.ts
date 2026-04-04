@@ -351,6 +351,13 @@ export async function listPublicSessions(filters?: PublicFilters): Promise<Publi
   return data.sessions
 }
 
+export type TranscriptSegmentApi = {
+  speaker?: string | null
+  start_sec: number
+  end_sec: number
+  text: string
+}
+
 export type PublicSessionView = {
   id: string
   title: string
@@ -367,6 +374,9 @@ export type PublicSessionView = {
   normalized_transcript?: string
   deadlines_overdue?: number
   deadlines_upcoming?: number
+  /** URL или путь /uploads/... для воспроизведения исходной записи */
+  playback_url?: string | null
+  transcript_segments?: TranscriptSegmentApi[]
 }
 
 export async function getPublicSession(

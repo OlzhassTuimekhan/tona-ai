@@ -30,6 +30,8 @@ class Commitment(BaseModel):
     quote: str = ""
     timestamp_start: float | None = None
     timestamp_end: float | None = None
+    # asr_quote_span | asr_snap | llm_only — откуда взяты timestamp_* (ASR = опора по времени)
+    time_alignment: str | None = None
 
 
 class Decision(BaseModel):
@@ -56,6 +58,15 @@ class Violation(BaseModel):
     category: str | None = None
 
 
+class TranscriptSegment(BaseModel):
+    """Фрагмент транскрипта с таймкодом и (при диаризации) меткой спикера — для seek в плеере."""
+
+    speaker: str | None = None
+    start_sec: float
+    end_sec: float
+    text: str = ""
+
+
 class AnalysisResult(BaseModel):
     transcript: str
     normalized_transcript: str = ""
@@ -63,6 +74,7 @@ class AnalysisResult(BaseModel):
     language_detected: str | None = None
     duration_seconds: float | None = None
 
+    transcript_segments: list[TranscriptSegment] = Field(default_factory=list)
     speakers: list[Speaker] = Field(default_factory=list)
     key_points: list[str] = Field(default_factory=list)
     commitments: list[Commitment] = Field(default_factory=list)

@@ -5,7 +5,7 @@ import logging
 import tempfile
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import requests
 from pydub import AudioSegment
@@ -367,6 +367,100 @@ class SonioxASR:
             return None
         max_end = max((t.get("end_ms") or t.get("end_time_ms") or 0) for t in tokens)
         return max_end / 1000.0 if max_end > 0 else None
+
+    @staticmethod
+    def _token_speaker_label(t: dict) -> str | None:
+        for k in ("speaker", "speaker_id", "speaker_label", "spk_id", "channel"):
+            v = t.get(k)
+            if v is None:
+                continue
+            s = str(v).strip()
+            if s:
+                return s
+        return None
+
+    @staticmethod
+    def tokens_to_diarized_segments(tokens: list[dict]) -> list[dict[str, Any]]:
+        """Склеивает подряд идущие токены с одним спикером в сегменты с start/end в секундах."""
+        if not tokens:
+            return []
+
+        segments: list[dict[str, Any]] = []
+        cur_label: str | None = None
+        cur_start_ms: float | None = None
+        cur_end_ms: float | None = None
+        buf: list[str] = []
+
+        def flush() -> None:
+            nonlocal cur_label, cur_start_ms, cur_end_ms, buf
+            if cur_start_ms is None:
+                buf = []
+                return
+            text = "".join(buf).strip()
+            buf = []
+            if not text:
+                cur_start_ms = None
+                cur_end_ms = None
+                cur_label = None
+                return
+            end_ms = float(cur_end_ms) if cur_end_ms is not None else float(cur_start_ms)
+            start_ms = float(cur_start_ms)
+            if end_ms < start_ms:
+                end_ms = start_ms
+            start_sec = round(start_ms / 1000.0, 3)
+            end_sec = round(max(end_ms / 1000.0, start_sec + 0.05), 3)
+            segments.append(
+                {
+                    "speaker": cur_label,
+                    "start_sec": start_sec,
+                    "end_sec": end_sec,
+                    "text": text,
+                }
+            )
+            cur_start_ms = None
+            cur_end_ms = None
+            cur_label = None
+
+        for t in tokens:
+            if not isinstance(t, dict):
+                continue
+            txt = str(t.get("text", ""))
+            sm = t.get("start_ms") if t.get("start_ms") is not None else t.get("start_time_ms")
+            em = t.get("end_ms") if t.get("end_ms") is not None else t.get("end_time_ms")
+
+            if sm is None:
+                if buf:
+                    buf.append(txt)
+                continue
+
+            try:
+                sm_f = float(sm)
+            except (TypeError, ValueError):
+                continue
+            try:
+                em_f = float(em) if em is not None else sm_f
+            except (TypeError, ValueError):
+                em_f = sm_f
+
+            spk = SonioxASR._token_speaker_label(t)
+
+            if cur_start_ms is None:
+                cur_label = spk
+                cur_start_ms = sm_f
+                cur_end_ms = em_f
+                buf = [txt]
+            elif spk != cur_label:
+                flush()
+                cur_label = spk
+                cur_start_ms = sm_f
+                cur_end_ms = em_f
+                buf = [txt]
+            else:
+                buf.append(txt)
+                cur_end_ms = max(cur_end_ms or sm_f, em_f)
+
+        flush()
+        return segments
 
     # ── Transcript normalization ────────────────────────────────
     # Soniox produces per-character timestamps: [6.60s-6.60s]З[6.60s-7.00s]дра...

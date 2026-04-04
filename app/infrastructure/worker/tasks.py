@@ -1,11 +1,14 @@
 import asyncio
 import logging
+import shutil
 from pathlib import Path
 from typing import Optional
 
 from celery import Celery
 
+from app.application.alignment import align_commitments_to_asr
 from app.core.config import settings
+from app.domain.models import Commitment, TranscriptSegment
 from app.infrastructure.storage.object_storage import resolve_worker_audio_path
 from app.infrastructure.asr.soniox import SonioxASR
 from app.infrastructure.llm.llm_client import LLMAnalyzer
@@ -68,10 +71,32 @@ def analyze_file(
             language=language,
         ))
 
+        segs = soniox.tokens_to_diarized_segments(tokens)
+        result.transcript_segments = [TranscriptSegment.model_validate(s) for s in segs]
+
+        playback_path: str | None = None
+        if path_resolved is not None and path_resolved.exists():
+            try:
+                ext = path_resolved.suffix.lower() or ".wav"
+                dest_name = f"job_audio_{task_id}{ext}"
+                dest = settings.UPLOADS_DIR / dest_name
+                shutil.copy2(path_resolved, dest)
+                playback_path = f"/uploads/{dest_name}"
+            except OSError as copy_err:
+                logger.warning("[%s] playback copy failed: %s", task_id, copy_err)
+
         result.transcript = transcript
         result.normalized_transcript = normalized
         result.duration_seconds = duration
-        result.metadata = {**(metadata or {}), "task_id": task_id, "source": "file"}
+        result.metadata = {
+            **(metadata or {}),
+            "task_id": task_id,
+            "source": "file",
+            "playback_path": playback_path,
+        }
+
+        aligned_com = align_commitments_to_asr(result.commitments, result.transcript_segments)
+        result.commitments = [Commitment(**a) for a in aligned_com]
 
         payload = result.model_dump()
 
@@ -131,10 +156,25 @@ def analyze_url(
             language=language,
         ))
 
+        segs = soniox.tokens_to_diarized_segments(tokens)
+        result.transcript_segments = [TranscriptSegment.model_validate(s) for s in segs]
+
+        au = str(audio_url).strip()
+        playback_path = au if au.startswith(("http://", "https://")) else None
+
         result.transcript = transcript
         result.normalized_transcript = normalized
         result.duration_seconds = duration
-        result.metadata = {**(metadata or {}), "task_id": task_id, "source": "url", "audio_url": audio_url}
+        result.metadata = {
+            **(metadata or {}),
+            "task_id": task_id,
+            "source": "url",
+            "audio_url": audio_url,
+            "playback_path": playback_path,
+        }
+
+        aligned_com = align_commitments_to_asr(result.commitments, result.transcript_segments)
+        result.commitments = [Commitment(**a) for a in aligned_com]
 
         payload = result.model_dump()
 

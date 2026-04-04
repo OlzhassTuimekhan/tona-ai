@@ -196,6 +196,15 @@ def build_public_view(doc: dict[str, Any]) -> dict[str, Any]:
     overdue = sum(1 for c in enriched_commitments if isinstance(c, dict) and c.get("deadline_status") == "overdue")
     upcoming = sum(1 for c in enriched_commitments if isinstance(c, dict) and c.get("deadline_status") == "upcoming")
 
+    meta = pl.get("metadata") if isinstance(pl.get("metadata"), dict) else {}
+    playback_url = meta.get("playback_path")
+    if not playback_url and isinstance(meta.get("audio_url"), str):
+        au = meta["audio_url"].strip()
+        if au.startswith(("http://", "https://")):
+            playback_url = au
+    raw_segments = pl.get("transcript_segments")
+    transcript_segments = raw_segments if isinstance(raw_segments, list) else []
+
     return {
         "id": doc["id"],
         "title": doc.get("title"),
@@ -213,6 +222,8 @@ def build_public_view(doc: dict[str, Any]) -> dict[str, Any]:
         "normalized_transcript": pl.get("normalized_transcript") or pl.get("transcript"),
         "deadlines_overdue": overdue,
         "deadlines_upcoming": upcoming,
+        "transcript_segments": transcript_segments,
+        "playback_url": playback_url,
     }
 
 

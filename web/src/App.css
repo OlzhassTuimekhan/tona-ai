@@ -1129,6 +1129,126 @@ button:disabled {
   color: var(--muted);
 }
 
+.commitment-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+
+.btn-seek-inline {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.65rem;
+}
+
+.diarized-player {
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.diarized-player-audio {
+  width: 100%;
+  max-height: 48px;
+  margin-bottom: 0.65rem;
+}
+
+.diarized-segments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.diarized-segment-row {
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.diarized-segment-row:last-child {
+  border-bottom: none;
+}
+
+.diarized-segment-row-active {
+  background: rgba(var(--accent-rgb), 0.12);
+  border-radius: 8px;
+}
+
+.diarized-segment-row-active .diarized-seg-txt {
+  font-weight: 600;
+}
+
+.diarized-segment-btn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.65rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.25rem;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.diarized-segment-btn:hover:not(:disabled) {
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
+.diarized-segment-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.diarized-seg-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.diarized-seg-spk {
+  font-size: 0.78rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.diarized-seg-txt {
+  flex: 1 1 100%;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.data-table .narrow-col {
+  width: 3.5rem;
+  text-align: center;
+}
+
+.btn-seek-audio {
+  border: none;
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent);
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.btn-seek-audio:hover {
+  background: rgba(var(--accent-rgb), 0.22);
+}
+
 .btn-commit-target {
   display: inline-block;
   background: transparent;

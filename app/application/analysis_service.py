@@ -1,11 +1,20 @@
+import shutil
+import uuid
 from pathlib import Path
 from typing import Any, Optional
 
 from celery.result import AsyncResult
 
+from app.application.alignment import align_commitments_to_asr
 from app.application.factories import build_llm, build_soniox
 from app.core.config import Settings
-from app.domain.models import AnalyzeUrlRequest, JobCreatedResponse, JobStatusResponse
+from app.domain.models import (
+    AnalyzeUrlRequest,
+    Commitment,
+    JobCreatedResponse,
+    JobStatusResponse,
+    TranscriptSegment,
+)
 from app.infrastructure.worker.tasks import analyze_file, analyze_url, celery_app
 
 
@@ -67,7 +76,7 @@ class AnalysisService:
         soniox = build_soniox(self._settings)
         llm = build_llm(self._settings)
 
-        transcript, _tokens, duration = soniox.transcribe_file(file_path, language=language)
+        transcript, tokens, duration = soniox.transcribe_file(file_path, language=language)
         normalized = soniox.normalize_transcript(transcript)
 
         result = await llm.analyze(
@@ -78,9 +87,21 @@ class AnalysisService:
             language=language,
         )
 
+        segs = soniox.tokens_to_diarized_segments(tokens)
+        result.transcript_segments = [TranscriptSegment.model_validate(s) for s in segs]
+
+        aligned_com = align_commitments_to_asr(result.commitments, result.transcript_segments)
+        result.commitments = [Commitment(**a) for a in aligned_com]
+
+        ext = file_path.suffix.lower() or ".wav"
+        dest_name = f"sync_audio_{uuid.uuid4().hex}{ext}"
+        dest = self._settings.UPLOADS_DIR / dest_name
+        shutil.copy2(file_path, dest)
+
         result.transcript = transcript
         result.normalized_transcript = normalized
         result.duration_seconds = duration
+        result.metadata = {"playback_path": f"/uploads/{dest_name}"}
 
         return result.model_dump()
 
@@ -88,7 +109,7 @@ class AnalysisService:
         soniox = build_soniox(self._settings)
         llm = build_llm(self._settings)
 
-        transcript, _tokens, duration = soniox.transcribe_url(req.audio_url, language=req.language)
+        transcript, tokens, duration = soniox.transcribe_url(req.audio_url, language=req.language)
         normalized = soniox.normalize_transcript(transcript)
 
         result = await llm.analyze(
@@ -99,9 +120,18 @@ class AnalysisService:
             language=req.language,
         )
 
+        segs = soniox.tokens_to_diarized_segments(tokens)
+        result.transcript_segments = [TranscriptSegment.model_validate(s) for s in segs]
+
+        aligned_com = align_commitments_to_asr(result.commitments, result.transcript_segments)
+        result.commitments = [Commitment(**a) for a in aligned_com]
+
+        au = str(req.audio_url).strip()
+        playback = au if au.startswith(("http://", "https://")) else None
+
         result.transcript = transcript
         result.normalized_transcript = normalized
         result.duration_seconds = duration
-        result.metadata = req.metadata or {}
+        result.metadata = {**(req.metadata or {}), "playback_path": playback, "audio_url": req.audio_url}
 
         return result.model_dump()
