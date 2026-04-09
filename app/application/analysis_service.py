@@ -87,10 +87,16 @@ class AnalysisService:
             language=language,
         )
 
-        segs = soniox.tokens_to_diarized_segments(tokens)
+        segs = soniox.tokens_to_diarized_segments(tokens, duration_hint_sec=duration)
         result.transcript_segments = [TranscriptSegment.model_validate(s) for s in segs]
+        wsegs = soniox.tokens_to_word_segments(tokens, duration_hint_sec=duration)
+        result.transcript_word_segments = [TranscriptSegment.model_validate(s) for s in wsegs]
 
-        aligned_com = align_commitments_to_asr(result.commitments, result.transcript_segments)
+        aligned_com = align_commitments_to_asr(
+            result.commitments,
+            result.transcript_segments,
+            result.transcript_word_segments,
+        )
         result.commitments = [Commitment(**a) for a in aligned_com]
 
         ext = file_path.suffix.lower() or ".wav"
@@ -120,10 +126,16 @@ class AnalysisService:
             language=req.language,
         )
 
-        segs = soniox.tokens_to_diarized_segments(tokens)
+        segs = soniox.tokens_to_diarized_segments(tokens, duration_hint_sec=duration)
         result.transcript_segments = [TranscriptSegment.model_validate(s) for s in segs]
+        wsegs = soniox.tokens_to_word_segments(tokens, duration_hint_sec=duration)
+        result.transcript_word_segments = [TranscriptSegment.model_validate(s) for s in wsegs]
 
-        aligned_com = align_commitments_to_asr(result.commitments, result.transcript_segments)
+        aligned_com = align_commitments_to_asr(
+            result.commitments,
+            result.transcript_segments,
+            result.transcript_word_segments,
+        )
         result.commitments = [Commitment(**a) for a in aligned_com]
 
         au = str(req.audio_url).strip()

@@ -10,13 +10,9 @@ import {
 import {
   DiarizedTranscriptPlayer,
   parseTranscriptSegments,
+  seekAudioToTime,
 } from '@/components/DiarizedTranscriptPlayer'
-import {
-  DeadlineBadge,
-  FulfillmentBadge,
-  RatingBadge,
-  truncateText,
-} from '@/components/jois-ui'
+import { DeadlineBadge, FulfillmentBadge, RatingBadge } from '@/components/jois-ui'
 import {
   describeRecordingError,
   getRecordingEnvironmentHint,
@@ -220,12 +216,17 @@ export default function PublicDetailPage() {
     }
   }
 
-  const seekPublicAudio = useCallback((seconds: number) => {
-    const el = publicAudioRef.current
-    if (!el) return
-    el.currentTime = Math.max(0, seconds)
-    void el.play().catch(() => {})
-  }, [])
+  const publicHintDuration =
+    publicDoc && typeof publicDoc.duration_seconds === 'number' && Number.isFinite(publicDoc.duration_seconds)
+      ? publicDoc.duration_seconds
+      : null
+
+  const seekPublicAudio = useCallback(
+    (seconds: number) => {
+      seekAudioToTime(publicAudioRef.current, seconds, publicHintDuration)
+    },
+    [publicHintDuration],
+  )
 
   const publicCommitments = Array.isArray(publicDoc?.commitments)
     ? (publicDoc!.commitments as Record<string, unknown>[])
@@ -255,6 +256,7 @@ export default function PublicDetailPage() {
             {publicDoc.public_org ? <p className="public-lead">{publicDoc.public_org}</p> : null}
             <p className="summary-text citizen-summary">{publicDoc.summary || '—'}</p>
             {(publicDoc.playback_url ||
+              (Array.isArray(publicDoc.transcript_word_segments) && publicDoc.transcript_word_segments.length > 0) ||
               (Array.isArray(publicDoc.transcript_segments) && publicDoc.transcript_segments.length > 0)) && (
               <>
                 <h3 className="subh subh-plain">Запись заседания</h3>
@@ -269,8 +271,14 @@ export default function PublicDetailPage() {
                       : null
                   }
                   segments={parseTranscriptSegments({
+                    transcript_word_segments: publicDoc.transcript_word_segments,
                     transcript_segments: publicDoc.transcript_segments,
                   })}
+                  hintDurationSec={publicHintDuration}
+                  wordStream={
+                    Array.isArray(publicDoc.transcript_word_segments) &&
+                    publicDoc.transcript_word_segments.length > 0
+                  }
                 />
               </>
             )}
@@ -388,10 +396,7 @@ export default function PublicDetailPage() {
                       <span className="obs-scope">
                         {' '}
                         · пункт {Number(o.commitment_index) + 1}:{' '}
-                        {truncateText(
-                          String(publicCommitments[Number(o.commitment_index)]?.description ?? ''),
-                          70,
-                        )}
+                        {String(publicCommitments[Number(o.commitment_index)]?.description ?? '')}
                       </span>
                     ) : (
                       <span className="obs-scope"> · пункт №{String(o.commitment_index)}</span>
@@ -443,7 +448,7 @@ export default function PublicDetailPage() {
                   className={obsCommitTarget === i ? 'target-chip active' : 'target-chip'}
                   onClick={() => setObsCommitTarget(i)}
                 >
-                  Пункт {i + 1}: {truncateText(String(c.description ?? ''), 52)}
+                  Пункт {i + 1}: {String(c.description ?? '')}
                 </button>
               ))}
             </div>

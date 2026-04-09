@@ -4,13 +4,40 @@ import json
 import logging
 import tempfile
 import subprocess
+import warnings
 from pathlib import Path
 from typing import Any, Optional
 
 import requests
 from pydub import AudioSegment
 
+# На Windows без ffmpeg pydub спамит RuntimeWarning при импорте/вызовах — не мешает fallback через mutagen.
+warnings.filterwarnings("ignore", category=RuntimeWarning, module="pydub.utils")
+
 logger = logging.getLogger(__name__)
+
+# Форматы, которые Soniox обычно принимает как файл без предварительного WAV; нужно при отсутствии ffmpeg/pydub.
+_FALLBACK_UPLOAD_EXT = frozenset({".m4a", ".mp3", ".mp4", ".aac", ".ogg", ".flac", ".webm"})
+
+
+def _duration_sec_without_ffmpeg(audio_path: Path) -> float | None:
+    """Длительность без ffmpeg (mutagen)."""
+    try:
+        from mutagen.mp4 import MP4
+
+        if audio_path.suffix.lower() in (".m4a", ".mp4"):
+            return float(MP4(audio_path).info.length)
+    except Exception:
+        pass
+    try:
+        from mutagen import File as MutagenFile
+
+        f = MutagenFile(audio_path)
+        if f is not None and getattr(f.info, "length", None):
+            return float(f.info.length)
+    except Exception:
+        pass
+    return None
 
 
 class SonioxASR:
@@ -174,25 +201,59 @@ class SonioxASR:
             tmp.close()
             audio.export(str(tmp_path), format="wav", parameters=["-ac", "1", "-ar", "16000"])
             return tmp_path, True
-        except Exception:
+        except Exception as e:
             if audio_path.suffix.lower() == ".wav":
                 return audio_path, False
-            raise
+            ext = audio_path.suffix.lower()
+            if ext in _FALLBACK_UPLOAD_EXT:
+                logger.warning(
+                    "ffmpeg недоступен — отправляем исходный файл (%s) в Soniox без конвертации в WAV",
+                    ext,
+                )
+                return audio_path, False
+            raise RuntimeError(
+                "Нужен ffmpeg в PATH для конвертации этого формата, либо используйте .wav. "
+                "Ошибка pydub: %s" % (e,)
+            ) from e
+
+    def _file_duration_sec(self, audio_path: Path) -> float:
+        """Длительность трека: mutagen (без ffmpeg) или pydub."""
+        ext = audio_path.suffix.lower()
+        if ext in _FALLBACK_UPLOAD_EXT or ext == ".wav":
+            d = _duration_sec_without_ffmpeg(audio_path)
+            if d is not None and d > 0:
+                return d
+        try:
+            audio = AudioSegment.from_file(str(audio_path))
+            return len(audio) / 1000.0
+        except Exception as e:
+            d = _duration_sec_without_ffmpeg(audio_path)
+            if d is not None and d > 0:
+                return d
+            raise RuntimeError(
+                "Не удалось прочитать длительность аудио: установите ffmpeg в PATH "
+                "или pip install mutagen (для m4a/mp3 без ffmpeg)."
+            ) from e
 
     # ── Public: transcribe from file ────────────────────────────
 
     def transcribe_file(self, audio_path: Path, *, language: str | None = None) -> tuple[str, list[dict], float | None]:
         hints = self._resolve_hints(language)
-        audio = AudioSegment.from_file(str(audio_path))
-        duration_sec = len(audio) / 1000.0
+        duration_sec = self._file_duration_sec(audio_path)
 
         if duration_sec <= self.max_duration_sec:
             transcript, tokens = self._transcribe_single_file(audio_path, hints)
         else:
             logger.info(f"Audio {duration_sec:.0f}s exceeds limit, chunking...")
+            try:
+                audio = AudioSegment.from_file(str(audio_path))
+            except Exception as e:
+                raise RuntimeError(
+                    "Длинное аудио: нужен ffmpeg в PATH для нарезки на чанки (pydub)."
+                ) from e
             transcript, tokens = self._transcribe_chunked_file(audio_path, audio, hints)
 
-        duration = self._duration_from_tokens(tokens) or duration_sec
+        duration = self._duration_from_tokens(tokens, duration_sec) or duration_sec
         return transcript, tokens, duration
 
     def _transcribe_single_file(self, audio_path: Path, hints: list[str]) -> tuple[str, list[dict]]:
@@ -251,7 +312,7 @@ class SonioxASR:
         if duration_sec and duration_sec > self.max_duration_sec:
             logger.info(f"URL audio {duration_sec:.0f}s exceeds limit, chunking via ffmpeg...")
             transcript, tokens = self._transcribe_chunked_url(audio_url, hints, duration_sec)
-            duration = self._duration_from_tokens(tokens) or duration_sec
+            duration = self._duration_from_tokens(tokens, duration_sec) or duration_sec
             return transcript, tokens, duration
 
         try:
@@ -261,7 +322,7 @@ class SonioxASR:
             if status == "completed":
                 tokens = self._fetch_tokens(tr_id)
                 transcript = self._tokens_to_transcript(tokens)
-                duration = self._duration_from_tokens(tokens) or duration_sec
+                duration = self._duration_from_tokens(tokens, duration_sec) or duration_sec
                 return transcript, tokens, duration
 
             if error and "Maximum audio duration" in error:
@@ -273,7 +334,7 @@ class SonioxASR:
                 raise
 
         transcript, tokens = self._transcribe_chunked_url(audio_url, hints, duration_sec or 0)
-        duration = self._duration_from_tokens(tokens) or duration_sec
+        duration = self._duration_from_tokens(tokens, duration_sec) or duration_sec
         return transcript, tokens, duration
 
     def _transcribe_chunked_url(self, audio_url: str, hints: list[str], total_duration: float) -> tuple[str, list[dict]]:
@@ -362,11 +423,50 @@ class SonioxASR:
         return shifted
 
     @staticmethod
-    def _duration_from_tokens(tokens: list[dict]) -> float | None:
+    def _seconds_multiplier(tokens: list[dict], duration_hint_sec: float | None) -> float:
+        """Сырые поля времени в токенах → секунды. Soniox обычно шлёт ms; иногда значения уже в секундах."""
+        vals: list[float] = []
+        for t in tokens:
+            if not isinstance(t, dict):
+                continue
+            for k in ("end_ms", "end_time_ms", "start_ms", "start_time_ms"):
+                v = t.get(k)
+                if v is not None:
+                    try:
+                        vals.append(float(v))
+                    except (TypeError, ValueError):
+                        pass
+                    break
+        if not vals:
+            return 0.001
+        mx = max(vals)
+        if duration_hint_sec and duration_hint_sec > 0.5:
+            as_ms = mx / 1000.0
+            e_ms = abs(as_ms - duration_hint_sec)
+            e_s = abs(mx - duration_hint_sec)
+            if e_ms < e_s * 0.92:
+                return 0.001
+            if e_s < e_ms * 0.92:
+                return 1.0
+        if mx >= 1000:
+            return 0.001
+        return 1.0
+
+    @staticmethod
+    def _duration_from_tokens(tokens: list[dict], duration_hint_sec: float | None = None) -> float | None:
         if not tokens:
             return None
-        max_end = max((t.get("end_ms") or t.get("end_time_ms") or 0) for t in tokens)
-        return max_end / 1000.0 if max_end > 0 else None
+        scale = SonioxASR._seconds_multiplier(tokens, duration_hint_sec)
+        max_end = 0.0
+        for t in tokens:
+            if not isinstance(t, dict):
+                continue
+            em = t.get("end_ms") or t.get("end_time_ms") or 0
+            try:
+                max_end = max(max_end, float(em) * scale)
+            except (TypeError, ValueError):
+                pass
+        return max_end if max_end > 0 else None
 
     @staticmethod
     def _token_speaker_label(t: dict) -> str | None:
@@ -380,35 +480,40 @@ class SonioxASR:
         return None
 
     @staticmethod
-    def tokens_to_diarized_segments(tokens: list[dict]) -> list[dict[str, Any]]:
+    def tokens_to_diarized_segments(
+        tokens: list[dict],
+        duration_hint_sec: float | None = None,
+    ) -> list[dict[str, Any]]:
         """Склеивает подряд идущие токены с одним спикером в сегменты с start/end в секундах."""
         if not tokens:
             return []
 
+        scale = SonioxASR._seconds_multiplier(tokens, duration_hint_sec)
+
         segments: list[dict[str, Any]] = []
         cur_label: str | None = None
-        cur_start_ms: float | None = None
-        cur_end_ms: float | None = None
+        cur_start_s: float | None = None
+        cur_end_s: float | None = None
         buf: list[str] = []
 
         def flush() -> None:
-            nonlocal cur_label, cur_start_ms, cur_end_ms, buf
-            if cur_start_ms is None:
+            nonlocal cur_label, cur_start_s, cur_end_s, buf
+            if cur_start_s is None:
                 buf = []
                 return
             text = "".join(buf).strip()
             buf = []
             if not text:
-                cur_start_ms = None
-                cur_end_ms = None
+                cur_start_s = None
+                cur_end_s = None
                 cur_label = None
                 return
-            end_ms = float(cur_end_ms) if cur_end_ms is not None else float(cur_start_ms)
-            start_ms = float(cur_start_ms)
-            if end_ms < start_ms:
-                end_ms = start_ms
-            start_sec = round(start_ms / 1000.0, 3)
-            end_sec = round(max(end_ms / 1000.0, start_sec + 0.05), 3)
+            end_s = float(cur_end_s) if cur_end_s is not None else float(cur_start_s)
+            start_s = float(cur_start_s)
+            if end_s < start_s:
+                end_s = start_s
+            start_sec = round(start_s, 3)
+            end_sec = round(max(end_s, start_sec + 0.05), 3)
             segments.append(
                 {
                     "speaker": cur_label,
@@ -417,8 +522,8 @@ class SonioxASR:
                     "text": text,
                 }
             )
-            cur_start_ms = None
-            cur_end_ms = None
+            cur_start_s = None
+            cur_end_s = None
             cur_label = None
 
         for t in tokens:
@@ -434,33 +539,162 @@ class SonioxASR:
                 continue
 
             try:
-                sm_f = float(sm)
+                sm_raw = float(sm)
             except (TypeError, ValueError):
                 continue
             try:
-                em_f = float(em) if em is not None else sm_f
+                em_raw = float(em) if em is not None else sm_raw
             except (TypeError, ValueError):
-                em_f = sm_f
+                em_raw = sm_raw
+
+            sm_s = sm_raw * scale
+            em_s = em_raw * scale
 
             spk = SonioxASR._token_speaker_label(t)
 
-            if cur_start_ms is None:
+            if cur_start_s is None:
                 cur_label = spk
-                cur_start_ms = sm_f
-                cur_end_ms = em_f
+                cur_start_s = sm_s
+                cur_end_s = em_s
                 buf = [txt]
             elif spk != cur_label:
                 flush()
                 cur_label = spk
-                cur_start_ms = sm_f
-                cur_end_ms = em_f
+                cur_start_s = sm_s
+                cur_end_s = em_s
                 buf = [txt]
             else:
                 buf.append(txt)
-                cur_end_ms = max(cur_end_ms or sm_f, em_f)
+                cur_end_s = max(cur_end_s or sm_s, em_s)
 
         flush()
         return segments
+
+    @staticmethod
+    def _bracket_transcript_from_tokens(tokens: list[dict], scale: float) -> str:
+        """Та же склейка, что _tokens_to_transcript, но время × scale (как в diarized)."""
+        parts: list[str] = []
+        current_lang: str | None = None
+        for t in tokens:
+            if not isinstance(t, dict):
+                continue
+            txt = str(t.get("text", ""))
+            lang = t.get("language")
+            if lang and lang != current_lang:
+                current_lang = str(lang)
+                parts.append(f" [{current_lang}] ")
+            start_ms = t.get("start_ms") or t.get("start_time_ms")
+            end_ms = t.get("end_ms") or t.get("end_time_ms")
+            if start_ms is not None:
+                try:
+                    s = float(start_ms) * scale
+                except (TypeError, ValueError):
+                    continue
+                if end_ms is not None:
+                    try:
+                        e = float(end_ms) * scale
+                    except (TypeError, ValueError):
+                        e = s
+                    parts.append(f"[{s:.2f}s-{e:.2f}s]{txt}")
+                else:
+                    parts.append(f"[{s:.2f}s]{txt}")
+            else:
+                parts.append(txt)
+        return "".join(parts).strip()
+
+    @staticmethod
+    def _speaker_for_word_range(
+        tokens: list[dict],
+        scale: float,
+        w_start: float,
+        w_end: float,
+    ) -> str | None:
+        for t in tokens:
+            if not isinstance(t, dict):
+                continue
+            sm = t.get("start_ms") or t.get("start_time_ms")
+            if sm is None:
+                continue
+            try:
+                sm_s = float(sm) * scale
+                em = t.get("end_ms") or t.get("end_time_ms")
+                em_s = float(em) * scale if em is not None else sm_s
+            except (TypeError, ValueError):
+                continue
+            if sm_s <= w_end + 1e-3 and em_s >= w_start - 1e-3:
+                return SonioxASR._token_speaker_label(t)
+        return None
+
+    @staticmethod
+    def tokens_to_word_segments(
+        tokens: list[dict],
+        duration_hint_sec: float | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Слова и интервалы — как normalize_transcript: разбор строки [t1-t2]s]фрагмент
+        (не сырой JSON токен за токеном). Иначе границы ломаются: «Ко л ле ги».
+        """
+        if not tokens:
+            return []
+        scale = SonioxASR._seconds_multiplier(tokens, duration_hint_sec)
+        raw = SonioxASR._bracket_transcript_from_tokens(tokens, scale)
+        # Как в normalize_transcript: только [start-end]s]; иначе вариант [start]s] из API
+        token_pattern = re.compile(r"\[(\d+(?:\.\d+)?)s-(\d+(?:\.\d+)?)s\]([^\[]*)")
+        matches: list[tuple[str, str, str]] = list(token_pattern.findall(raw))
+        if not matches:
+            single_pat = re.compile(r"\[(\d+(?:\.\d+)?)s\]([^\[]*)")
+            for t_s, tx in single_pat.findall(raw):
+                matches.append((t_s, t_s, tx))
+        if not matches:
+            return []
+
+        out: list[dict[str, Any]] = []
+        current_word = ""
+        current_start: float | None = None
+        current_end: float | None = None
+
+        def flush_word() -> None:
+            nonlocal current_word, current_start, current_end
+            w = current_word.strip()
+            if not w or current_start is None:
+                current_word = ""
+                current_start = current_end = None
+                return
+            end_s = float(current_end) if current_end is not None else current_start
+            spk = SonioxASR._speaker_for_word_range(tokens, scale, current_start, end_s)
+            out.append(
+                {
+                    "speaker": spk,
+                    "start_sec": round(current_start, 3),
+                    "end_sec": round(max(end_s, current_start + 0.01), 3),
+                    "text": w,
+                }
+            )
+            current_word = ""
+            current_start = current_end = None
+
+        for t_start_str, t_end_str, text in matches:
+            t_start = float(t_start_str)
+            t_end = float(t_end_str)
+            if not text:
+                continue
+
+            if text.startswith((" ", "\n")):
+                if current_word.strip():
+                    flush_word()
+                current_word = text.lstrip(" \n")
+                current_start = t_start
+                current_end = t_end
+            else:
+                if not current_word:
+                    current_start = t_start
+                current_word += text
+                current_end = t_end
+
+        if current_word.strip():
+            flush_word()
+
+        return out
 
     # ── Transcript normalization ────────────────────────────────
     # Soniox produces per-character timestamps: [6.60s-6.60s]З[6.60s-7.00s]дра...

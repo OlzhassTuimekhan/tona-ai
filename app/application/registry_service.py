@@ -204,6 +204,8 @@ def build_public_view(doc: dict[str, Any]) -> dict[str, Any]:
             playback_url = au
     raw_segments = pl.get("transcript_segments")
     transcript_segments = raw_segments if isinstance(raw_segments, list) else []
+    raw_word = pl.get("transcript_word_segments")
+    transcript_word_segments = raw_word if isinstance(raw_word, list) else []
 
     return {
         "id": doc["id"],
@@ -223,6 +225,7 @@ def build_public_view(doc: dict[str, Any]) -> dict[str, Any]:
         "deadlines_overdue": overdue,
         "deadlines_upcoming": upcoming,
         "transcript_segments": transcript_segments,
+        "transcript_word_segments": transcript_word_segments,
         "playback_url": playback_url,
     }
 

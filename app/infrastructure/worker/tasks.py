@@ -71,8 +71,10 @@ def analyze_file(
             language=language,
         ))
 
-        segs = soniox.tokens_to_diarized_segments(tokens)
+        segs = soniox.tokens_to_diarized_segments(tokens, duration_hint_sec=duration)
         result.transcript_segments = [TranscriptSegment.model_validate(s) for s in segs]
+        wsegs = soniox.tokens_to_word_segments(tokens, duration_hint_sec=duration)
+        result.transcript_word_segments = [TranscriptSegment.model_validate(s) for s in wsegs]
 
         playback_path: str | None = None
         if path_resolved is not None and path_resolved.exists():
@@ -95,7 +97,11 @@ def analyze_file(
             "playback_path": playback_path,
         }
 
-        aligned_com = align_commitments_to_asr(result.commitments, result.transcript_segments)
+        aligned_com = align_commitments_to_asr(
+            result.commitments,
+            result.transcript_segments,
+            result.transcript_word_segments,
+        )
         result.commitments = [Commitment(**a) for a in aligned_com]
 
         payload = result.model_dump()
@@ -156,8 +162,10 @@ def analyze_url(
             language=language,
         ))
 
-        segs = soniox.tokens_to_diarized_segments(tokens)
+        segs = soniox.tokens_to_diarized_segments(tokens, duration_hint_sec=duration)
         result.transcript_segments = [TranscriptSegment.model_validate(s) for s in segs]
+        wsegs = soniox.tokens_to_word_segments(tokens, duration_hint_sec=duration)
+        result.transcript_word_segments = [TranscriptSegment.model_validate(s) for s in wsegs]
 
         au = str(audio_url).strip()
         playback_path = au if au.startswith(("http://", "https://")) else None
@@ -173,7 +181,11 @@ def analyze_url(
             "playback_path": playback_path,
         }
 
-        aligned_com = align_commitments_to_asr(result.commitments, result.transcript_segments)
+        aligned_com = align_commitments_to_asr(
+            result.commitments,
+            result.transcript_segments,
+            result.transcript_word_segments,
+        )
         result.commitments = [Commitment(**a) for a in aligned_com]
 
         payload = result.model_dump()

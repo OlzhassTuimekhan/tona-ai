@@ -377,6 +377,8 @@ export type PublicSessionView = {
   /** URL или путь /uploads/... для воспроизведения исходной записи */
   playback_url?: string | null
   transcript_segments?: TranscriptSegmentApi[]
+  /** Токены/слова со спикером — приоритет для списка и seek, если есть */
+  transcript_word_segments?: TranscriptSegmentApi[]
 }
 
 export async function getPublicSession(

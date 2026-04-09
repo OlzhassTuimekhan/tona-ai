@@ -75,6 +75,10 @@ class AnalysisResult(BaseModel):
     duration_seconds: float | None = None
 
     transcript_segments: list[TranscriptSegment] = Field(default_factory=list)
+    transcript_word_segments: list[TranscriptSegment] = Field(
+        default_factory=list,
+        description="Токены ASR (по сути слова) со спикером — seek и привязка поручений точнее, чем только сегменты по спикеру.",
+    )
     speakers: list[Speaker] = Field(default_factory=list)
     key_points: list[str] = Field(default_factory=list)
     commitments: list[Commitment] = Field(default_factory=list)

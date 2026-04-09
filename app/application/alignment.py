@@ -54,7 +54,9 @@ def _find_quote_time_range(
             return float(seg["start_sec"]), float(seg["end_sec"])
 
     n = len(segments)
-    for size in range(2, min(8, n + 1)):
+    # Для словоуровневых сегментов цитата может охватывать десятки токенов; для спикерских — мало.
+    max_window = min(96, n + 1)
+    for size in range(2, max_window):
         for i in range(0, n - size + 1):
             chunk = "".join(segments[i + k].get("text") or "" for k in range(size))
             cn = _squash(chunk)
@@ -68,27 +70,38 @@ def _find_quote_time_range(
 def align_commitments_to_asr(
     commitments: list[Any],
     transcript_segments: list[Any],
+    transcript_word_segments: list[Any] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Проставляет timestamp_start / timestamp_end из сегментов Soniox:
-    1) по совпадению цитаты с текстом сегментов;
-    2) иначе snap LLM timestamp к ближайшему segment.start;
-    3) иначе оставляет LLM-таймкоды с пометкой llm_only (слабее для seek).
+    1) по совпадению цитаты с текстом сегментов (сначала по словам/токенам, точнее);
+    2) иначе по спикерским сегментам;
+    3) иначе snap LLM timestamp к ближайшему start;
+    4) иначе LLM-таймкоды с пометкой llm_only.
     """
     segs = _segment_dicts(transcript_segments)
+    word_segs = _segment_dicts(transcript_word_segments or [])
     out: list[dict[str, Any]] = []
 
     for c in commitments:
         d = _commitment_to_dict(c)
         quote = (d.get("quote") or "").strip()
 
-        if segs:
-            span = _find_quote_time_range(quote, segs) if quote else None
+        if segs or word_segs:
+            span = None
+            quote_from_words = False
+            if quote:
+                if word_segs:
+                    span = _find_quote_time_range(quote, word_segs)
+                    if span:
+                        quote_from_words = True
+                if span is None and segs:
+                    span = _find_quote_time_range(quote, segs)
             if span:
                 t0, t1 = span
                 d["timestamp_start"] = round(t0, 3)
                 d["timestamp_end"] = round(t1, 3)
-                d["time_alignment"] = "asr_quote_span"
+                d["time_alignment"] = "asr_quote_span_word" if quote_from_words else "asr_quote_span"
                 out.append(d)
                 continue
 
@@ -100,11 +113,12 @@ def align_commitments_to_asr(
                     d["time_alignment"] = "none"
                     out.append(d)
                     continue
-                hit = _snap_llm_to_segment(llm_ts, segs)
+                snap_pool = word_segs if word_segs else segs
+                hit = _snap_llm_to_segment(llm_ts, snap_pool)
                 if hit:
                     d["timestamp_start"] = round(float(hit["start_sec"]), 3)
                     d["timestamp_end"] = round(float(hit["end_sec"]), 3)
-                    d["time_alignment"] = "asr_snap"
+                    d["time_alignment"] = "asr_snap_word" if word_segs else "asr_snap"
                     out.append(d)
                     continue
 

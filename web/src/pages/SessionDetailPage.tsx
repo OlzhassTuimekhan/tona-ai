@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   getRegistrySession,
@@ -10,6 +10,8 @@ import {
   DiarizedTranscriptPlayer,
   parseTranscriptSegments,
   resolvePlaybackUrlFromPayload,
+  seekAudioToTime,
+  usesWordSegments,
 } from '@/components/DiarizedTranscriptPlayer'
 import { CommitmentsEvidenceTable, DeadlineBadge, truncateText } from '@/components/jois-ui'
 import { useAuth } from '@/context/AuthContext'
@@ -74,16 +76,22 @@ export default function SessionDetailPage() {
     ? (payload!.commitments as Record<string, unknown>[])
     : []
   const playbackSrc = resolvePlaybackUrlFromPayload(payload)
-  const transcriptSegments = parseTranscriptSegments(payload)
+  const transcriptSegments = useMemo(() => parseTranscriptSegments(payload), [sessionDoc])
+  const hintDurationSec = (() => {
+    const d = payload?.duration_seconds
+    if (typeof d === 'number' && Number.isFinite(d)) return d
+    if (typeof d === 'string') {
+      const n = Number(d)
+      return Number.isFinite(n) ? n : null
+    }
+    return null
+  })()
 
   const seekTo = useCallback(
     (seconds: number) => {
-      const el = audioRef.current
-      if (!el) return
-      el.currentTime = Math.max(0, seconds)
-      void el.play().catch(() => {})
+      seekAudioToTime(audioRef.current, seconds, hintDurationSec)
     },
-    [],
+    [hintDurationSec],
   )
 
   if (!id) {
@@ -118,6 +126,8 @@ export default function SessionDetailPage() {
                 audioRef={audioRef}
                 playbackSrc={playbackSrc}
                 segments={transcriptSegments}
+                hintDurationSec={hintDurationSec}
+                wordStream={usesWordSegments(payload)}
               />
             </>
           )}

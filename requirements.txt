@@ -9,6 +9,7 @@ python-multipart
 python-dotenv
 requests
 pydub
+mutagen>=1.47
 python-jose[cryptography]
 bcrypt
 sqlalchemy>=2.0
