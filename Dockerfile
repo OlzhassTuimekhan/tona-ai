@@ -9,8 +9,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY app/ ./app/
-COPY scripts/ ./scripts/
+COPY src/app/ ./app/
+COPY src/scripts/ ./scripts/
 
 RUN mkdir -p /app/temp_audio /app/uploads
 

@@ -1,355 +1,114 @@
-# JOIS — Голос каждого гражданина имеет значение
+# JOIS — Joint Oversight & Insight System
 
-**JOIS** (Joint Oversight & Insight System) — open-source GovTech-платформа, которая превращает аудиозаписи публичных заседаний в структурированные карточки поручений и открывает их для гражданского контроля.
+**JOIS** is an open-source GovTech stack that turns recordings of public meetings into structured **commitment cards** (who promised what, with quotes and deadlines) and lets citizens verify, challenge, and rate local government follow-through.
 
-## Проблема
+> Extended narrative and deployment notes in Russian: [`docs/ru/README.md`](docs/ru/README.md).
 
-В Казахстане и странах региона решения акиматов, совещания и публичные слушания фиксируются на аудио, но:
+## Problem statement
 
-- **Поручения теряются** — обещания чиновников остаются на записи и не оформляются в проверяемый формат.
-- **Обратная связь отсутствует** — у граждан нет инструмента сообщить, что поручение выполнено, не выполнено или сформулировано неверно.
-- **Рейтинг непрозрачен** — нет публичного, основанного на фактах механизма оценки работы местных органов власти.
+Public decisions in Kazakhstan and the wider region are often captured only as **audio**: promises stay on the tape, not in a checkable register. Citizens lack a simple way to say whether a commitment was met, misstated, or still open, and there is no transparent, evidence-linked **organizational rating** derived from real feedback.
 
-## Решение
+## Features
 
-JOIS замыкает цикл «заседание → поручение → контроль гражданами»:
+- **Speech-to-text** (Soniox) plus **LLM extraction** of summaries, speakers, and commitments with quotes and deadlines  
+- **Quote verification** against the full transcript to flag weak or invented citations  
+- **Role-based access**: admin (users + dashboard), akim (own org’s sessions), public read-only + observations  
+- **Registry & publishing** workflow: import analysis results, edit, publish to citizens  
+- **Citizen observations** with optional voice check and photo evidence; **organization ratings** (traffic-light style)  
+- **Docker Compose** stack: API, Celery worker, Redis, PostgreSQL, React frontend, optional HTTPS reverse proxy for microphone access on LAN  
+
+## Repository layout
 
 ```
-Аудио ──▶ ASR (Soniox) ──▶ LLM-анализ ──▶ Карточка поручений
-                                                  │
-                                                  ▼
-                                      Публикация для граждан
-                                                  │
-                                                  ▼
-                                   Голосовая отметка / фото / оценка
-                                                  │
-                                                  ▼
-                                        Рейтинг акимата (🟢🟡🔴)
+.
+├── src/
+│   ├── app/           # FastAPI backend (Python)
+│   ├── web/           # React + Vite frontend (TypeScript)
+│   └── scripts/       # Maintenance utilities (e.g. Redis → Postgres migration)
+├── docs/              # Extra documentation, example speech text, nginx-ssl helpers
+├── tests/             # Reserved for automated tests
+├── assets/            # Shared static assets (placeholders for now)
+├── docker-compose.yml
+├── Dockerfile         # Backend image
+├── requirements.txt
+├── .env.example
+├── LICENSE
+└── README.md
 ```
 
-1. **Аким** загружает аудио заседания (файл или URL).
-2. Система распознаёт речь (Soniox ASR) и через LLM извлекает: резюме, спикеров, поручения с цитатами, сроками и ответственными.
-3. Карточка сохраняется в реестр. Аким публикует её для граждан.
-4. **Гражданин** (без регистрации) видит опубликованные карточки, фильтрует по городу/организации, и оставляет отметку:
-   - «Был на встрече» — подтверждение участия
-   - «Вижу выполнение» — положительная оценка
-   - «Оспариваю» — несогласие с формулировкой или невыполнение
-5. Отметки с **прикреплённым фото** получают повышенный вес и показываются первыми.
-6. На основе всех отметок формируется **рейтинг организации** по 100-балльной шкале с тремя уровнями:
-   - 🟢 **Зелёный** (65–100) — положительная динамика
-   - 🟡 **Жёлтый** (36–64) — недостаточно данных или нейтральная оценка
-   - 🔴 **Красный** (0–35) — много негативных отзывов, показывается приоритетно
+Core analysis pipeline: `src/app/application/analysis_service.py` (orchestrates ASR → LLM → evidence checks).
 
-## MVP — минимально работающий элемент
+## Installation
 
-Ядро системы — **конвейер анализа** (`app/application/analysis_service.py`), который можно вызвать одним HTTP-запросом и получить готовый результат без UI:
+**Prerequisites:** Docker & Docker Compose v2+, API keys for **Soniox** and an **OpenAI-compatible LLM** (e.g. via OpenRouter).
 
 ```bash
-# Отправить аудиофайл на анализ (требуется JWT-токен акима/админа)
-curl -X POST http://localhost:8000/api/v1/jobs/file \
-  -H "Authorization: Bearer $TOKEN" \
-  -F "file=@meeting.mp3" \
-  -F "analysis_type=meeting"
+git clone <your-fork-url> tona-ai
+cd tona-ai
 
-# Ответ: {"task_id": "abc-123", "status": "queued"}
-```
-
-Внутри этого единственного вызова срабатывает полная цепочка:
-
-```
-┌─────────────┐     ┌───────────────┐     ┌────────────────┐     ┌──────────────┐
-│  Аудиофайл  │────▶│ FFmpeg/pydub  │────▶│  Soniox ASR    │────▶│  LLM-анализ  │
-│  (mp3/wav)  │     │ нормализация  │     │  речь → текст  │     │  текст → JSON│
-└─────────────┘     └───────────────┘     └────────────────┘     └──────┬───────┘
-                                                                        │
-                                                                        ▼
-                                                                 ┌──────────────┐
-                                                                 │  Результат:  │
-                                                                 │  • резюме    │
-                                                                 │  • спикеры   │
-                                                                 │  • поручения │
-                                                                 │  • цитаты    │
-                                                                 │  • сроки     │
-                                                                 └──────────────┘
-```
-
-**Что именно делает конвейер (модуль `analysis_service` + Celery worker):**
-
-1. **Приём аудио** — файл или URL; FFmpeg конвертирует в формат, пригодный для ASR.
-2. **Распознавание речи** — Soniox ASR возвращает транскрипт (поддержка казахского и русского языков, до 4 часов записи).
-3. **Структурный анализ** — LLM (Gemini / GPT / любой OpenAI-совместимый) по одному из 5 профилей извлекает из текста JSON со структурой: резюме, список спикеров, поручения (формулировка, ответственный, срок, прямая цитата из речи).
-4. **Верификация цитат** — модуль `evidence.py` сверяет каждую цитату поручения с полным транскриптом (поиск подстроки + нечёткое сравнение), отмечая: `evidence_verified: true/false`.
-5. **Результат** — JSON-документ, готовый к сохранению в реестр или к отдаче через API.
-
-**Минимальный набор для работы конвейера:**
-
-| Компонент | Зачем нужен |
-|---|---|
-| `analysis_service.py` | Оркестратор: принимает файл, вызывает ASR → LLM → верификацию |
-| `soniox.py` | Клиент ASR (речь → текст) |
-| `llm_client.py` | Клиент LLM + 5 промптов-профилей (текст → структура) |
-| `evidence.py` | Сверка цитат с транскриптом |
-| `tasks.py` | Celery-задача для асинхронной обработки |
-| Redis | Брокер очереди + хранилище результатов |
-
-Всё остальное (реестр, публикация, рейтинги, UI) — надстройки над этим ядром. Конвейер работает автономно и может использоваться как самостоятельный API-сервис для анализа любых аудиозаписей.
-
-## Ключевые возможности
-
-| Возможность | Описание |
-|---|---|
-| Мультипрофильный анализ | 5 предустановленных профилей: общий, совещание госорганов, судебное заседание, полицейский протокол, call-центр |
-| Верификация цитат | Автоматическая сверка LLM-цитат с оригинальным транскриптом |
-| Ролевой доступ | `admin` — управление пользователями; `akim` — работа со своими сессиями; гражданин — просмотр без аккаунта |
-| Изоляция данных | Аким видит только сессии своей организации |
-| Голосовая капча | Гражданин подтверждает отметку голосом (ASR-проверка фразы) |
-| Загрузка фото | Прикрепление фотоотчётов к наблюдениям |
-| Фильтрация | Поиск сессий по городу, организации, ключевым словам |
-| Рейтинг организаций | Агрегированная оценка на основе всех сессий и наблюдений |
-| Дедлайны поручений | Парсинг сроков, статусы «в работе / просрочено / выполнено», подсветка в UI |
-| Выполнение поручений | Аким отмечает выполнение; просроченные не может закрыть без админа; влияние на рейтинг |
-| Статистика для граждан | Счётчики сессий, поручений, отзывов и просрочек на вкладке «Горожанам» |
-| Дашборд администратора | Сводка по платформе, организациям и список просроченных поручений (только admin) |
-
-## Технологический стек
-
-### Backend
-
-| Компонент | Технология |
-|---|---|
-| API | **FastAPI** (Python 3.12) |
-| Сервер | **Uvicorn** с hot-reload |
-| Очередь задач | **Celery** (4 воркера) |
-| Брокер / хранилище | **Redis 7** (DB 0 — задачи, DB 1 — реестр сессий и пользователи) |
-| ASR | **Soniox** (до 4 часов аудио) |
-| LLM | OpenAI-совместимый API (по умолчанию **Gemini 2.0 Flash** через OpenRouter) |
-| Аутентификация | **JWT** (python-jose) + **bcrypt** |
-| Обработка аудио | **FFmpeg** + **pydub** |
-
-### Frontend
-
-| Компонент | Технология |
-|---|---|
-| Фреймворк | **React 19** + **TypeScript 5.9** |
-| Сборка | **Vite 8** |
-| Продакшн-сервер | **Nginx 1.27** (статика + reverse proxy) |
-
-### Инфраструктура
-
-| Компонент | Технология |
-|---|---|
-| Контейнеризация | **Docker** + **Docker Compose** |
-| Контейнеры | `api`, `worker`, `web`, `redis` |
-
-## Архитектура проекта
-
-```
-jois-audio/
-├── app/                          # Backend (FastAPI)
-│   ├── api/
-│   │   ├── v1/
-│   │   │   ├── auth.py           # POST /login, GET /me
-│   │   │   ├── admin.py          # CRUD пользователей + GET /dashboard (admin only)
-│   │   │   ├── jobs.py           # Загрузка аудио, статус задач
-│   │   │   ├── registry.py       # Реестр сессий (akim/admin)
-│   │   │   ├── public.py         # Публичные сессии, рейтинги, фильтры
-│   │   │   └── health.py         # Health check
-│   │   ├── deps.py               # DI: auth guards, сервисы
-│   │   └── legacy.py             # Обратная совместимость
-│   ├── application/
-│   │   ├── analysis_service.py   # Оркестрация ASR + LLM
-│   │   ├── auth_service.py       # JWT + bcrypt
-│   │   ├── registry_service.py   # Бизнес-логика реестра и рейтингов
-│   │   ├── evidence.py           # Верификация цитат
-│   │   ├── profiles.py           # Профили анализа
-│   │   └── voice_human_check.py  # Голосовая капча
-│   ├── domain/
-│   │   └── models.py             # Pydantic-схемы
-│   ├── infrastructure/
-│   │   ├── asr/soniox.py         # Клиент Soniox ASR
-│   │   ├── llm/llm_client.py     # Клиент LLM + промпты
-│   │   ├── persistence/
-│   │   │   └── redis_registry.py # Redis CRUD (сессии + пользователи)
-│   │   ├── audio/processor.py    # FFmpeg-обработка
-│   │   └── webhooks.py           # Вебхуки по завершении
-│   ├── core/config.py            # Pydantic Settings
-│   ├── main.py                   # FastAPI app factory + seed admin
-│   └── tasks.py                  # Celery tasks
-├── web/                          # Frontend (React)
-│   ├── src/
-│   │   ├── App.tsx               # SPA: все вкладки и логика
-│   │   ├── App.css               # Стили (dark theme)
-│   │   └── api/client.ts         # HTTP-клиент к API
-│   ├── nginx.conf                # Nginx: статика + proxy /api
-│   └── Dockerfile                # Multi-stage: node build → nginx
-├── docker-compose.yml            # 4 сервиса: redis, api, worker, web
-├── Dockerfile                    # Python backend image
-├── requirements.txt              # Python-зависимости
-├── .env.example                  # Шаблон переменных окружения
-└── docs/ru/README.md             # Подробная документация (RU)
-```
-
-## Быстрый старт
-
-### Предварительные требования
-
-- **Docker** и **Docker Compose** v2+
-- API-ключ **Soniox** ([soniox.com](https://soniox.com))
-- API-ключ **LLM** (OpenAI / OpenRouter / любой совместимый)
-
-### Установка
-
-```bash
-# 1. Клонировать репозиторий
-git clone https://github.com/your-org/jois-audio.git
-cd jois-audio
-
-# 2. Создать .env из шаблона
 cp .env.example .env
+# Set at minimum: SONIOX_API_KEY, LLM_API_KEY
+# Optional: DATABASE_URL for PostgreSQL (see docker-compose postgres service)
 
-# 3. Заполнить API-ключи в .env
-#    SONIOX_API_KEY=...
-#    LLM_API_KEY=...
-
-# 4. Собрать и запустить
 docker compose up -d --build
-
-# 5. Проверить статус
 docker compose ps
 ```
 
-### Доступ
+**HTTPS for browser microphone on a LAN IP** (optional): generate certs and use the `https-proxy` service — see comments in `docker-compose.yml` and `./docs/nginx-ssl/generate-cert.sh`.
 
-| Сервис | URL |
-|---|---|
-| Веб-интерфейс | [http://localhost:5173](http://localhost:5173) |
-| API (Swagger) | [http://localhost:8000/docs](http://localhost:8000/docs) |
+## Usage
 
-### Учётные записи по умолчанию
+| Step | Action |
+|------|--------|
+| Web UI | Open [http://localhost:5173](http://localhost:5173) (Compose maps host **5173** → frontend container) |
+| API docs | Open [http://localhost:8080/docs](http://localhost:8080/docs) (Compose maps host **8080** → API **8000** inside the container) |
+| Login | Default admin: `admin` / `admin` — change via `ADMIN_USERNAME` / `ADMIN_PASSWORD` in `.env` |
 
-При первом запуске автоматически создаётся администратор:
+**Typical flow (official):** admin creates an **akim** user tied to an organization → akim uploads meeting audio → waits for Celery job → imports result into the registry → publishes → citizens browse and leave observations on the public pages.
 
-- **Логин:** `admin`
-- **Пароль:** `admin`
+**API smoke test (with JWT):**
 
-> Сменить через переменные `ADMIN_USERNAME` / `ADMIN_PASSWORD` в `.env`
+```bash
+curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin"}'
+# Use access_token from the response:
+curl -s -X POST http://localhost:8080/api/v1/jobs/file \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@path/to/meeting.mp3" \
+  -F "analysis_type=meeting"
+```
 
-### Создание аккаунта акима
+**Maintenance scripts** (from repo root):
 
-1. Войти как `admin` → вкладка **Дашборд** (сводка по сессиям, поручениям, организациям и просрочкам) или **Пользователи**
-2. Создать пользователя с ролью `akim`, указав:
-   - Организация (например, «Акимат г. Алматы»)
-   - Город и регион
-3. Аким входит под своим логином и работает только со своими сессиями
+```bash
+python src/scripts/test_temp_audio.py
+python src/scripts/migrate_redis_to_postgres.py   # requires DATABASE_URL and Redis access
+```
 
-## Сценарии использования
+## Screenshots
 
-### Для акима (чиновника)
+No static screenshots are checked into this repository; after `docker compose up`, open the URLs above to see the dark-themed SPA (dashboard, registry, public “citizens” view, ratings).
 
-1. **Запись** — загрузить аудиофайл или URL на запись заседания
-2. Выбрать профиль анализа (совещание, суд, общий и т.д.)
-3. Дождаться завершения (ASR → LLM → карточка)
-4. **Архив** — импортировать результат в реестр
-5. Проверить извлечённые поручения, отредактировать при необходимости; в карточке — **строка срока** в таблице поручений и блок **«Статус выполнения»** (просроченное закрыть как выполненное может только админ)
-6. **Опубликовать** карточку для граждан
+## Technology stack
 
-### Для гражданина
+| Layer | Technologies |
+|-------|----------------|
+| Backend | Python 3.12, FastAPI, Uvicorn, Celery, Pydantic Settings |
+| Data / queue | Redis 7, PostgreSQL 16 (optional persistence for registry) |
+| AI | Soniox (ASR), OpenAI-compatible LLM APIs |
+| Frontend | React 19, TypeScript, Vite 8, Nginx for production static + `/api` proxy |
+| Infra | Docker, Docker Compose |
 
-1. Открыть [http://localhost:5173](http://localhost:5173) (вход не нужен)
-2. Вкладка **Горожанам** — список опубликованных сессий
-3. Фильтр по городу или поиск по ключевым словам
-4. Открыть карточку → прочитать поручения → оставить отметку
-5. Вкладка **Рейтинг** — сводная оценка по организациям
+## API overview
 
-### Для администратора
+- **Auth:** `POST /api/v1/auth/login`, `GET /api/v1/auth/me`  
+- **Jobs:** upload audio (`/api/v1/jobs/file`, `/api/v1/jobs/url`), poll status  
+- **Registry:** import, list, publish sessions (akim/admin)  
+- **Public:** list published sessions, post observations, ratings, stats  
 
-1. **Дашборд** — KPI по опубликованным сессиям, поручениям (выполнено / просрочено), отзывам, числу акимов; карточки по организациям; таблица просроченных поручений с переходом в карточку сессии
-2. **Пользователи** — создание и удаление аккаунтов `akim` / `admin`
-3. **Архив** — все сессии с фильтром по организации (табы)
-4. При необходимости — отметить выполнение просроченного поручения задним числом (обход ограничения для акима)
+Full tables are in the Russian deep-dive doc linked at the top.
 
-## Переменные окружения
+## License
 
-| Переменная | Описание | По умолчанию |
-|---|---|---|
-| `SONIOX_API_KEY` | Ключ Soniox ASR | — (обязательно) |
-| `LLM_API_KEY` | Ключ LLM-провайдера | — (обязательно) |
-| `LLM_BASE_URL` | URL LLM API | OpenAI default |
-| `LLM_MODEL` | ID основной модели | `google/gemini-2.0-flash-001` |
-| `CELERY_BROKER_URL` | Redis для Celery | `redis://redis:6379/0` |
-| `CELERY_RESULT_BACKEND` | Redis для результатов | `redis://redis:6379/0` |
-| `CORS_ORIGINS` | Разрешённые CORS-origins | `http://localhost:5173` |
-| `JWT_SECRET_KEY` | Секрет для JWT-токенов | `change-me-in-production` |
-| `JWT_EXPIRE_HOURS` | Время жизни токена (часы) | `24` |
-| `ADMIN_USERNAME` | Логин начального админа | `admin` |
-| `ADMIN_PASSWORD` | Пароль начального админа | `admin` |
-| `SONIOX_MAX_DURATION_SEC` | Макс. длина аудио (сек) | `14400` (4 часа) |
-
-## API-эндпоинты
-
-### Аутентификация
-
-| Метод | Путь | Описание |
-|---|---|---|
-| `POST` | `/api/v1/auth/login` | Вход, получение JWT |
-| `GET` | `/api/v1/auth/me` | Текущий пользователь |
-
-### Администрирование (admin)
-
-| Метод | Путь | Описание |
-|---|---|---|
-| `POST` | `/api/v1/admin/users` | Создать пользователя |
-| `GET` | `/api/v1/admin/users` | Список пользователей |
-| `DELETE` | `/api/v1/admin/users/{id}` | Удалить пользователя |
-| `GET` | `/api/v1/admin/dashboard` | Сводная аналитика (сессии, поручения, организации, просрочки) |
-
-### Задачи анализа (akim/admin)
-
-| Метод | Путь | Описание |
-|---|---|---|
-| `POST` | `/api/v1/jobs/file` | Загрузить аудиофайл |
-| `POST` | `/api/v1/jobs/url` | Анализ по URL |
-| `GET` | `/api/v1/jobs/{task_id}` | Статус задачи |
-| `GET` | `/api/v1/jobs/profiles` | Доступные профили анализа |
-
-### Реестр сессий (akim/admin)
-
-| Метод | Путь | Описание |
-|---|---|---|
-| `POST` | `/api/v1/registry/import` | Импорт задачи в реестр |
-| `GET` | `/api/v1/registry/sessions` | Список сессий |
-| `GET` | `/api/v1/registry/sessions/{id}` | Детали сессии |
-| `PATCH` | `/api/v1/registry/sessions/{id}/publish` | Публикация / снятие |
-| `PATCH` | `/api/v1/registry/sessions/{id}/commitments/{index}/status` | Статус поручения: `fulfilled` / `pending` |
-
-### Публичные (без авторизации)
-
-| Метод | Путь | Описание |
-|---|---|---|
-| `GET` | `/api/v1/public/sessions` | Опубликованные сессии (с фильтрами) |
-| `GET` | `/api/v1/public/sessions/{id}` | Детали публичной сессии |
-| `POST` | `/api/v1/public/sessions/{id}/observations` | Оставить отметку |
-| `GET` | `/api/v1/public/ratings` | Рейтинги организаций |
-| `GET` | `/api/v1/public/cities` | Доступные города/регионы/организации (сессии + профили акимов) |
-| `GET` | `/api/v1/public/stats` | Агрегированная статистика платформы для главной «Горожанам» |
-
-## Roadmap
-
-### Ближайшие шаги
-
-- **Уведомления в Telegram** — гражданин подписывается на район/организацию и получает пуш при новых сессиях или истёкших дедлайнах
-- **Эскалация** — автоматический отчёт в вышестоящий орган при красном рейтинге
-- **Мобильное приложение** — гражданин прикрепляет фото с геотегом как доказательство прямо с телефона
-- **Расширение дашборда** — экспорт в CSV/PDF, графики по месяцам, алерты по порогам просрочек
-
-### Стратегические направления
-
-- **Интеграция с eGov / Smart Data Ukimet** — автоматический импорт протоколов маслихатов и акиматов
-- **Қазақ тілінде интерфейс** — полная локализация UI на государственный язык
-- **Открытые данные (Open Data API)** — публичный API для журналистов, исследователей и НКО
-- **Региональная аналитика** — тренды по регионам и периодам поверх уже существующего админ-дашборда (сейчас: срез по организациям и просрочкам)
-- **Мультитенантность** — развёртывание для нескольких регионов с единым центром мониторинга
-
-## Лицензия
-
-MIT
+MIT — see [`LICENSE`](LICENSE).
