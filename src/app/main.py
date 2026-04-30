@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.legacy import router as legacy_router
@@ -72,6 +73,17 @@ def create_app() -> FastAPI:
     app.include_router(legacy_router)
 
     app.mount("/uploads", StaticFiles(directory=str(settings.UPLOADS_DIR)), name="uploads")
+
+    @app.get("/", tags=["root"], include_in_schema=True)
+    def root() -> JSONResponse:
+        return JSONResponse({
+            "service": "JOIS Analysis Platform",
+            "version": "1.2.0",
+            "status": "ok",
+            "api_base": "/api/v1",
+            "docs": "/docs",
+            "openapi": "/openapi.json",
+        })
 
     @app.on_event("startup")
     def on_startup() -> None:
