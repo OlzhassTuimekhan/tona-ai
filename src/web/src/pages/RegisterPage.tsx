@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 
 export default function RegisterPage() {
+  const { t } = useTranslation()
   const { register } = useAuth()
   const navigate = useNavigate()
 
@@ -41,14 +43,15 @@ export default function RegisterPage() {
 
   return (
     <section className="panel login-panel">
-      <h2 className="panel-title">Регистрация гражданина</h2>
+      <h2 className="panel-title">{t('register.title')}</h2>
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Уже есть аккаунт? <Link to="/login">Войти</Link>. Без регистрации доступен просмотр в «Горожанам».
+        {t('register.leadPrefix')} <Link to="/login">{t('register.loginLink')}</Link>
+        {t('register.leadSuffix')}
       </p>
       {err ? <p className="error panel-inline-err">{err}</p> : null}
       <div className="admin-form-grid">
         <label className="field">
-          <span>Логин</span>
+          <span>{t('register.username')}</span>
           <input
             type="text"
             value={username}
@@ -57,7 +60,7 @@ export default function RegisterPage() {
           />
         </label>
         <label className="field">
-          <span>Пароль (не короче 6 символов)</span>
+          <span>{t('register.password')}</span>
           <input
             type="password"
             value={password}
@@ -66,7 +69,7 @@ export default function RegisterPage() {
           />
         </label>
         <label className="field">
-          <span>Имя</span>
+          <span>{t('register.firstName')}</span>
           <input
             type="text"
             value={firstName}
@@ -75,7 +78,7 @@ export default function RegisterPage() {
           />
         </label>
         <label className="field">
-          <span>Фамилия</span>
+          <span>{t('register.lastName')}</span>
           <input
             type="text"
             value={lastName}
@@ -84,24 +87,24 @@ export default function RegisterPage() {
           />
         </label>
         <label className="field">
-          <span>Район</span>
+          <span>{t('register.district')}</span>
           <input
             type="text"
             value={district}
             onChange={(e) => setDistrict(e.target.value)}
-            placeholder="Например: Алмалинский"
+            placeholder={t('register.districtPh')}
           />
         </label>
         <label className="field">
-          <span>Город (необязательно)</span>
+          <span>{t('register.cityOpt')}</span>
           <input type="text" value={city} onChange={(e) => setCity(e.target.value)} />
         </label>
         <label className="field">
-          <span>Область / регион (необязательно)</span>
+          <span>{t('register.regionOpt')}</span>
           <input type="text" value={region} onChange={(e) => setRegion(e.target.value)} />
         </label>
         <label className="field">
-          <span>Телефон (необязательно)</span>
+          <span>{t('register.phoneOpt')}</span>
           <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" />
         </label>
       </div>
@@ -117,7 +120,7 @@ export default function RegisterPage() {
         }
         onClick={() => void submit()}
       >
-        {busy ? 'Регистрация…' : 'Зарегистрироваться'}
+        {busy ? t('register.busy') : t('register.submit')}
       </button>
     </section>
   )

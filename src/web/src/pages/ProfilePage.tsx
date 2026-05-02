@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { updateProfile, type ProfileUpdate } from '@/api/client'
 import { useAuth } from '@/context/AuthContext'
 
 export default function ProfilePage() {
+  const { t } = useTranslation()
   const { user, refresh } = useAuth()
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -53,50 +55,54 @@ export default function ProfilePage() {
 
   return (
     <section className="panel">
-      <h2 className="panel-title">Профиль</h2>
+      <h2 className="panel-title">{t('profile.title')}</h2>
       <p className="muted">
         <span className={`role-pill ${user.role}`}>{user.role}</span> · {user.username}
       </p>
       {(user.role === 'admin' || user.role === 'akim') && user.org ? (
         <p className="muted">
-          Организация (задаётся администратором): <strong>{user.org}</strong>
+          {t('profile.orgNote')} <strong>{user.org}</strong>
         </p>
       ) : null}
 
       {err ? <p className="error panel-inline-err">{err}</p> : null}
-      {ok ? <p className="muted" style={{ color: 'var(--accent)' }}>Сохранено.</p> : null}
+      {ok ? (
+        <p className="muted" style={{ color: 'var(--accent)' }}>
+          {t('profile.saved')}
+        </p>
+      ) : null}
 
       <h3 className="subh" style={{ marginTop: '1.25rem' }}>
-        Личные данные
+        {t('profile.personal')}
       </h3>
       <div className="admin-form-grid admin-form-grid--two profile-form-grid">
         <label className="field">
-          <span>Имя</span>
+          <span>{t('profile.firstName')}</span>
           <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
         </label>
         <label className="field">
-          <span>Фамилия</span>
+          <span>{t('profile.lastName')}</span>
           <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} />
         </label>
         <label className="field">
-          <span>Район</span>
+          <span>{t('profile.district')}</span>
           <input type="text" value={district} onChange={(e) => setDistrict(e.target.value)} />
         </label>
         <label className="field">
-          <span>Город</span>
+          <span>{t('profile.city')}</span>
           <input type="text" value={city} onChange={(e) => setCity(e.target.value)} />
         </label>
         <label className="field">
-          <span>Область / регион</span>
+          <span>{t('profile.region')}</span>
           <input type="text" value={region} onChange={(e) => setRegion(e.target.value)} />
         </label>
         <label className="field">
-          <span>Телефон</span>
+          <span>{t('profile.phone')}</span>
           <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </label>
       </div>
       <button type="button" className="btn-block profile-save-btn" disabled={busy} onClick={() => void save()}>
-        {busy ? 'Сохранение…' : 'Сохранить'}
+        {busy ? t('profile.saving') : t('profile.save')}
       </button>
     </section>
   )

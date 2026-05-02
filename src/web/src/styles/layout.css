@@ -64,6 +64,50 @@
   margin-top: 0;
 }
 
+.app-sidebar-lang {
+  flex-shrink: 0;
+  padding: 0.6rem 0.75rem 0.35rem;
+  border-top: 1px solid var(--border);
+}
+
+.language-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.language-switcher-label {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.language-switcher-select {
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.language-switcher--guest {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.language-switcher--guest .language-switcher-select {
+  width: auto;
+  min-width: 7.5rem;
+}
+
 .app-brand {
   font-weight: 700;
   font-size: 1.15rem;

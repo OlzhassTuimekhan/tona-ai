@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type RefObject } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { resolvePublicAssetUrl } from '@/config'
 
@@ -167,6 +168,7 @@ export function DiarizedTranscriptPlayer({
   hintDurationSec,
   wordStream = false,
 }: DiarizedTranscriptPlayerProps) {
+  const { t } = useTranslation()
   const [activeIdx, setActiveIdx] = useState<number | null>(null)
   const [playheadSec, setPlayheadSec] = useState(0)
 
@@ -239,12 +241,12 @@ export function DiarizedTranscriptPlayer({
           preload="metadata"
           src={playbackSrc}
         >
-          Ваш браузер не воспроизводит audio.
+          {t('diarized.noAudio')}
         </audio>
       ) : null}
       {segments.length > 0 ? (
         wordStream ? (
-          <div className="diarized-word-stream" role="region" aria-label="Транскрипт, клик по слову для перехода в записи">
+          <div className="diarized-word-stream" role="region" aria-label={t('diarized.wordStreamLabel')}>
             {segments.map((s, i) => {
               const prev = i > 0 ? segments[i - 1] : null
               const spk = s.speaker != null && String(s.speaker).trim() ? String(s.speaker) : null
@@ -272,8 +274,8 @@ export function DiarizedTranscriptPlayer({
                     disabled={!playbackSrc}
                     title={
                       playbackSrc
-                        ? `${formatTime(s.start_sec)} — перейти к этому месту в записи`
-                        : 'Нет URL записи'
+                        ? t('diarized.seekWordTitle', { time: formatTime(s.start_sec) })
+                        : t('diarized.noUrl')
                     }
                     onClick={(e) => {
                       e.preventDefault()
@@ -298,7 +300,7 @@ export function DiarizedTranscriptPlayer({
                   type="button"
                   className="diarized-segment-btn"
                   disabled={!playbackSrc}
-                  title={playbackSrc ? 'Перейти к фрагменту в записи' : 'Нет URL записи для воспроизведения'}
+                  title={playbackSrc ? t('diarized.seekFragment') : t('diarized.noUrlPlay')}
                   onClick={(e) => {
                     e.preventDefault()
                     seek(Number(s.start_sec))
@@ -308,14 +310,14 @@ export function DiarizedTranscriptPlayer({
                     {formatTime(s.start_sec)}–{formatTime(s.end_sec)}
                   </span>
                   {s.speaker ? <span className="diarized-seg-spk">{s.speaker}</span> : null}
-                  <span className="diarized-seg-txt">{s.text || '—'}</span>
+                  <span className="diarized-seg-txt">{s.text || t('common.dash')}</span>
                 </button>
               </li>
             ))}
           </ul>
         )
       ) : playbackSrc ? (
-        <p className="muted small">Для этой сессии нет сегментов с таймкодами (старая обработка или пустой ответ ASR).</p>
+        <p className="muted small">{t('diarized.noSegments')}</p>
       ) : null}
     </div>
   )

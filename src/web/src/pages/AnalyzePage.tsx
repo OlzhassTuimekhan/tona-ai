@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
   enqueueFile,
@@ -19,20 +20,8 @@ import {
 import { pickRecorderMime } from '@/utils/recorder'
 import { useAuth } from '@/context/AuthContext'
 
-function jobStatusLabel(status: string) {
-  const m: Record<string, string> = {
-    pending: 'В очереди',
-    queued: 'В очереди',
-    processing: 'Идёт обработка',
-    running: 'Идёт обработка',
-    completed: 'Готово',
-    failed: 'Ошибка',
-    error: 'Ошибка',
-  }
-  return m[status] ?? status
-}
-
 export default function AnalyzePage() {
+  const { t, i18n } = useTranslation()
   const { user } = useAuth()
   const navigate = useNavigate()
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -48,6 +37,15 @@ export default function AnalyzePage() {
   const [regErr, setRegErr] = useState<string | null>(null)
   const [regBusy, setRegBusy] = useState(false)
 
+  const jobStatusLabel = useCallback(
+    (status: string) => {
+      const key = `jobStatus.${status}` as const
+      const tr = t(key)
+      return tr === key ? status : tr
+    },
+    [t],
+  )
+
   const onJobUpdate = useCallback((j: JobPoll) => {
     setJob(j)
   }, [])
@@ -60,7 +58,7 @@ export default function AnalyzePage() {
   const [recordingSec, setRecordingSec] = useState(0)
   const [recordedPreview, setRecordedPreview] = useState<string | null>(null)
 
-  const micEnvHint = useMemo(() => getRecordingEnvironmentHint(), [])
+  const micEnvHint = useMemo(() => getRecordingEnvironmentHint(), [i18n.language])
 
   useEffect(() => {
     if (!isRecording) return
@@ -88,9 +86,7 @@ export default function AnalyzePage() {
     setRecordingSec(0)
     try {
       if (!isMediaRecorderAvailable()) {
-        setErr(
-          'В этом браузере недоступна запись звука. Используйте загрузку файла ниже.',
-        )
+        setErr(t('analyze.micBlocked'))
         return
       }
       const stream = await requestMicrophoneAudio({
@@ -135,7 +131,12 @@ export default function AnalyzePage() {
       const name = `recording-${Date.now()}.${ext}`
       const audioFile = new File([blob], name, { type: mime })
       setFile(audioFile)
-      setRecordedPreview(`${name} (${(blob.size / 1024).toFixed(1)} КБ)`)
+      setRecordedPreview(
+        t('analyze.recordReady', {
+          name,
+          kb: (blob.size / 1024).toFixed(1),
+        }),
+      )
       stream?.getTracks().forEach((t) => t.stop())
       mediaStreamRef.current = null
       mediaRecorderRef.current = null
@@ -168,11 +169,11 @@ export default function AnalyzePage() {
 
   const submitFile = async () => {
     if (isRecording) {
-      setErr('Сначала нажмите «Остановить запись»')
+      setErr(t('analyze.stopFirst'))
       return
     }
     if (!file) {
-      setErr('Выберите файл с компьютера или запишите звук микрофоном')
+      setErr(t('analyze.needFile'))
       return
     }
     setErr(null)
@@ -194,7 +195,7 @@ export default function AnalyzePage() {
 
   const submitUrl = async () => {
     if (!url.trim()) {
-      setErr('Вставьте ссылку на аудио')
+      setErr(t('analyze.needUrl'))
       return
     }
     setErr(null)
@@ -221,7 +222,7 @@ export default function AnalyzePage() {
     try {
       const r = await importRegistrySession(taskId, { analysisType: profile })
       if (r.duplicate) {
-        setRegErr('Эта обработка уже была сохранена — открыта существующая карточка.')
+        setRegErr(t('analyze.duplicateRegistry'))
       }
       navigate(`/registry/${r.session_id}`)
     } catch (e) {
@@ -238,24 +239,33 @@ export default function AnalyzePage() {
 
   const fileReady = !!file && !isRecording
 
+  const stopRecLabel = t('analyze.stopRecord', {
+    m: Math.floor(recordingSec / 60).toString(),
+    s: (recordingSec % 60).toString().padStart(2, '0'),
+  })
+
+  const profileLabel = (p: Profile) => {
+    const tk = `analyze.profile.${p.id}` as const
+    const tr = t(tk)
+    return tr === tk ? p.label : tr
+  }
+
   return (
     <div className="analyze-page">
       <header className="analyze-header">
-        <h1 className="analyze-title">Разбор аудио заседания</h1>
-        <p className="analyze-lead">
-          Загрузите запись — система сформирует поручения и цитаты из протокола. Обычно достаточно одного файла.
-        </p>
+        <h1 className="analyze-title">{t('analyze.title')}</h1>
+        <p className="analyze-lead">{t('analyze.lead')}</p>
       </header>
 
       <details className="analyze-settings">
-        <summary className="analyze-settings-summary">Параметры анализа (по умолчанию можно не менять)</summary>
+        <summary className="analyze-settings-summary">{t('analyze.settingsSummary')}</summary>
         <div className="analyze-settings-body">
           <label className="field">
-            <span>Тип заседания</span>
+            <span>{t('analyze.meetingType')}</span>
             <select value={profile} onChange={(e) => setProfile(e.target.value)}>
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.label}
+                  {profileLabel(p)}
                 </option>
               ))}
               {profiles.length === 0 && (
@@ -267,21 +277,21 @@ export default function AnalyzePage() {
             </select>
           </label>
           <label className="field">
-            <span>Язык речи</span>
+            <span>{t('analyze.speechLanguage')}</span>
             <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-              <option value="">Как в записи (авто)</option>
+              <option value="">{t('analyze.langAuto')}</option>
               <option value="kk">Қазақша</option>
               <option value="ru">Русский</option>
               <option value="en">English</option>
             </select>
           </label>
           <label className="field wide">
-            <span>Пожелания к отчёту (необязательно)</span>
+            <span>{t('analyze.instructions')}</span>
             <textarea
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
               rows={2}
-              placeholder="Например: выделить только поручения со сроками"
+              placeholder={t('analyze.instructionsPh')}
             />
           </label>
         </div>
@@ -290,14 +300,12 @@ export default function AnalyzePage() {
       <div className="analyze-layout">
         <section className="analyze-card analyze-card--main" aria-labelledby="analyze-audio-heading">
           <h2 id="analyze-audio-heading" className="analyze-card-title">
-            Файл или запись
+            {t('analyze.fileOrRecord')}
           </h2>
-          <p className="analyze-card-hint">
-            Выберите готовый файл с компьютера — чаще всего это MP3 или WAV. Запись с микрофона — если файла ещё нет.
-          </p>
+          <p className="analyze-card-hint">{t('analyze.fileHint')}</p>
 
           <label className="field">
-            <span>Файл с компьютера</span>
+            <span>{t('analyze.fileFromPc')}</span>
             <input
               type="file"
               accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm"
@@ -311,7 +319,7 @@ export default function AnalyzePage() {
           <div className="analyze-divider" role="presentation" />
 
           <div className="record-block analyze-mic">
-            <span className="field-label">Запись с микрофона</span>
+            <span className="field-label">{t('analyze.micRecord')}</span>
             {micEnvHint ? <p className="muted small analyze-mic-note">{micEnvHint}</p> : null}
             <div className="record-row">
               {!isRecording ? (
@@ -322,18 +330,17 @@ export default function AnalyzePage() {
                   title={micEnvHint ?? undefined}
                   onClick={() => void startRecording()}
                 >
-                  Начать запись
+                  {t('analyze.startRecord')}
                 </button>
               ) : (
                 <button type="button" className="btn-record-stop" disabled={busy} onClick={stopRecording}>
-                  Остановить ({Math.floor(recordingSec / 60)}:
-                  {(recordingSec % 60).toString().padStart(2, '0')})
+                  {stopRecLabel}
                 </button>
               )}
               {isRecording ? <span className="recording-dot" aria-hidden /> : null}
             </div>
             {recordedPreview && !isRecording ? (
-              <p className="record-hint">Запись готова: {recordedPreview}</p>
+              <p className="record-hint">{recordedPreview}</p>
             ) : null}
           </div>
 
@@ -344,28 +351,26 @@ export default function AnalyzePage() {
               disabled={busy || isRecording || !fileReady}
               onClick={() => void submitFile()}
             >
-              {busy ? 'Отправляем…' : 'Отправить на разбор'}
+              {busy ? t('analyze.submitFileBusy') : t('analyze.submitFile')}
             </button>
             {!file && !isRecording ? (
-              <p className="analyze-submit-hint muted small">Сначала выберите файл или завершите запись</p>
+              <p className="analyze-submit-hint muted small">{t('analyze.needFileOrRecord')}</p>
             ) : null}
           </div>
         </section>
 
         <section className="analyze-card" aria-labelledby="analyze-url-heading">
           <h2 id="analyze-url-heading" className="analyze-card-title">
-            Ссылка на аудио
+            {t('analyze.pasteUrl')}
           </h2>
-          <p className="analyze-card-hint">
-            Если запись уже лежит по адресу в интернете — вставьте ссылку (отдельная постановка в очередь).
-          </p>
+          <p className="analyze-card-hint">{t('analyze.urlHint')}</p>
           <label className="field">
-            <span>URL</span>
+            <span>{t('analyze.url')}</span>
             <input
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://…"
+              placeholder={t('analyze.urlPh')}
             />
           </label>
           <button
@@ -374,7 +379,7 @@ export default function AnalyzePage() {
             disabled={busy}
             onClick={() => void submitUrl()}
           >
-            {busy ? 'Отправляем…' : 'Отправить по ссылке'}
+            {busy ? t('analyze.submitFileBusy') : t('analyze.submitUrl')}
           </button>
         </section>
       </div>
@@ -382,13 +387,13 @@ export default function AnalyzePage() {
       {err ? <p className="error analyze-error">{err}</p> : null}
 
       <section className="panel analyze-result">
-        <h2 className="analyze-result-title">Результат</h2>
+        <h2 className="analyze-result-title">{t('analyze.result')}</h2>
         {regErr ? <p className="error panel-inline-err">{regErr}</p> : null}
         {!job && !taskId ? (
-          <p className="muted analyze-result-empty">Здесь появится ход обработки и итог после отправки аудио.</p>
+          <p className="muted analyze-result-empty">{t('analyze.resultEmpty')}</p>
         ) : null}
         {taskId && !job ? (
-          <p className="muted analyze-result-empty">Задача создана, ждём ответа сервера…</p>
+          <p className="muted analyze-result-empty">{t('analyze.taskCreated')}</p>
         ) : null}
         {job ? (
           <>
@@ -398,24 +403,24 @@ export default function AnalyzePage() {
             {job.error ? <pre className="error analyze-job-err">{job.error}</pre> : null}
             {taskId ? (
               <p className="muted small analyze-task-ref">
-                Номер задачи (для обращения в поддержку): <code>{taskId}</code>
+                {t('analyze.taskRef')} <code>{taskId}</code>
               </p>
             ) : null}
             {job.result ? (
               <>
-                <h3 className="subh">Краткое содержание</h3>
-                <p className="summary-text">{(jobResultPayload?.summary as string) || '—'}</p>
-                <h3 className="subh">Поручения и цитаты</h3>
+                <h3 className="subh">{t('analyze.summary')}</h3>
+                <p className="summary-text">
+                  {(jobResultPayload?.summary as string) || t('common.dash')}
+                </p>
+                <h3 className="subh">{t('analyze.commitments')}</h3>
                 <CommitmentsEvidenceTable commitments={jobCommitments} />
               </>
             ) : null}
             {job.status === 'completed' && taskId ? (
               <div className="registry-cta">
-                <p className="muted small">
-                  Сохраните карточку в архиве — там же будут доступны цитаты и сверка с записью.
-                </p>
+                <p className="muted small">{t('analyze.saveRegistryHint')}</p>
                 <button type="button" disabled={regBusy} onClick={() => void saveToRegistry()}>
-                  {regBusy ? 'Сохранение…' : 'Сохранить в архив'}
+                  {regBusy ? t('analyze.saveRegistryBusy') : t('analyze.saveRegistry')}
                 </button>
               </div>
             ) : null}

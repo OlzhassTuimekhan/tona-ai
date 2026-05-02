@@ -1,4 +1,6 @@
+import { useTranslation } from 'react-i18next'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { useAuth } from '@/context/AuthContext'
 import { canAccessAnalyzeAndRegistry } from '@/constants/roles'
 
@@ -11,6 +13,8 @@ function navClsEgov({ isActive }: { isActive: boolean }) {
 }
 
 function GuestHeader() {
+  const { t } = useTranslation()
+
   return (
     <header className="app-top-guest app-top-egov">
       <div className="egov-header-top">
@@ -18,20 +22,21 @@ function GuestHeader() {
           JO<span>IS</span>
         </NavLink>
         <div className="egov-header-top-right">
+          <LanguageSwitcher className="language-switcher--guest" compact />
           <NavLink to="/login" className="egov-link-muted">
-            Войти
+            {t('nav.login')}
           </NavLink>
           <NavLink to="/register" className="egov-btn-outline">
-            Регистрация гражданина
+            {t('nav.registerCitizen')}
           </NavLink>
         </div>
       </div>
-      <nav className="egov-nav-strip" aria-label="Основное меню">
+      <nav className="egov-nav-strip" aria-label={t('common.mainNav')}>
         <NavLink to="/public" className={navClsEgov}>
-          Горожанам
+          {t('nav.citizens')}
         </NavLink>
         <NavLink to="/ratings" className={navClsEgov}>
-          Рейтинг
+          {t('nav.ratings')}
         </NavLink>
       </nav>
     </header>
@@ -39,6 +44,7 @@ function GuestHeader() {
 }
 
 export default function AppLayout() {
+  const { t } = useTranslation()
   const { user, loading, logout } = useAuth()
   const loc = useLocation()
   const navigate = useNavigate()
@@ -58,7 +64,7 @@ export default function AppLayout() {
         : 'shell-wide'
 
   if (loading) {
-    return <div className="auth-loading">Загрузка…</div>
+    return <div className="auth-loading">{t('auth.loading')}</div>
   }
 
   if (isAuthPage) {
@@ -101,33 +107,36 @@ export default function AppLayout() {
             </NavLink>
             {isAdmin ? (
               <NavLink to="/dashboard" className={navCls}>
-                Дашборд
+                {t('nav.dashboard')}
               </NavLink>
             ) : null}
             {isStaffOperator ? (
               <>
                 <NavLink to="/analyze" className={navCls}>
-                  Запись
+                  {t('nav.record')}
                 </NavLink>
                 <NavLink to="/registry" className={navCls}>
-                  Архив
+                  {t('nav.archive')}
                 </NavLink>
               </>
             ) : null}
             <NavLink to="/public" className={navCls}>
-              Горожанам
+              {t('nav.citizens')}
             </NavLink>
             <NavLink to="/ratings" className={navCls}>
-              Рейтинг
+              {t('nav.ratings')}
             </NavLink>
             {isAdmin ? (
               <NavLink to="/admin/users" className={navCls}>
-                Пользователи
+                {t('nav.users')}
               </NavLink>
             ) : null}
             <NavLink to="/profile" className={navCls}>
-              Профиль
+              {t('nav.profile')}
             </NavLink>
+          </div>
+          <div className="app-sidebar-lang">
+            <LanguageSwitcher />
           </div>
           <div className="app-sidebar-footer">
             <div className="app-sidebar-user">
@@ -142,7 +151,7 @@ export default function AppLayout() {
                 navigate('/public')
               }}
             >
-              Выйти
+              {t('nav.logout')}
             </button>
           </div>
         </aside>

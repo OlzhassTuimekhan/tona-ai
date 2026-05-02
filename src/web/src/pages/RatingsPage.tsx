@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { fetchOrgRatings, type OrgRating } from '@/api/client'
 import { RatingBadge } from '@/components/jois-ui'
 
 export default function RatingsPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [orgRatings, setOrgRatings] = useState<OrgRating[]>([])
 
@@ -22,17 +24,14 @@ export default function RatingsPage() {
   return (
     <section className="panel panel-citizen ratings-page">
       <div className="row space-between citizen-toolbar">
-        <h2 className="panel-title panel-title-plain">Рейтинг органов власти</h2>
+        <h2 className="panel-title panel-title-plain">{t('ratings.title')}</h2>
         <button type="button" className="btn-secondary" onClick={() => void loadRatings()}>
-          Обновить
+          {t('ratings.refresh')}
         </button>
       </div>
-      <p className="muted">
-        Рейтинг формируется на основе отзывов горожан. Отзывы с фото имеют повышенный вес. Чем краснее
-        рейтинг — тем больше внимания требуется.
-      </p>
+      <p className="muted">{t('ratings.lead')}</p>
       {orgRatings.length === 0 ? (
-        <p className="muted lead">Пока нет данных для рейтинга.</p>
+        <p className="muted lead">{t('ratings.empty')}</p>
       ) : (
         <div className="ratings-grid">
           {orgRatings.map((r) => (
@@ -48,14 +47,14 @@ export default function RatingsPage() {
                 <span className="score-label">{r.score}/100</span>
               </div>
               <div className="rating-card-stats">
-                <span>Сессий: {r.sessions_count}</span>
-                <span>Отзывов: {r.observations_total}</span>
-                <span>С фото: {r.observations_with_photo}</span>
+                <span>{t('ratings.statSessions', { n: r.sessions_count })}</span>
+                <span>{t('ratings.statObs', { n: r.observations_total })}</span>
+                <span>{t('ratings.statPhoto', { n: r.observations_with_photo })}</span>
               </div>
               <div className="rating-card-breakdown">
-                <span className="stat-positive">Работа сделана: {r.positive}</span>
-                <span className="stat-neutral">Присутствовал: {r.neutral}</span>
-                <span className="stat-negative">Оспариваний: {r.negative}</span>
+                <span className="stat-positive">{t('ratings.positive', { n: r.positive })}</span>
+                <span className="stat-neutral">{t('ratings.neutral', { n: r.neutral })}</span>
+                <span className="stat-negative">{t('ratings.negative', { n: r.negative })}</span>
               </div>
               <button
                 type="button"
@@ -66,7 +65,7 @@ export default function RatingsPage() {
                   })
                 }
               >
-                Посмотреть сессии
+                {t('ratings.viewSessions')}
               </button>
             </article>
           ))}

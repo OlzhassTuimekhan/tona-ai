@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { createUser, deleteUser, listUsers, type AuthUser } from '@/api/client'
 import { ROLE_OPTIONS_ADMIN } from '@/constants/roles'
 import { useAuth } from '@/context/AuthContext'
 
 export default function AdminUsersPage() {
+  const { t } = useTranslation()
   const { user: authUser } = useAuth()
   const [adminUsersList, setAdminUsersList] = useState<AuthUser[]>([])
   const [adminBusy, setAdminBusy] = useState(false)
@@ -14,6 +16,15 @@ export default function AdminUsersPage() {
   const [newOrg, setNewOrg] = useState('')
   const [newCity, setNewCity] = useState('')
   const [newRegion, setNewRegion] = useState('')
+
+  const roleLabel = useCallback(
+    (value: string) => {
+      const key = `role.${value}` as const
+      const tr = t(key)
+      return tr === key ? value : tr
+    },
+    [t],
+  )
 
   const loadAdminUsers = useCallback(async () => {
     setAdminBusy(true)
@@ -70,47 +81,47 @@ export default function AdminUsersPage() {
     <section className="panel">
       {adminErr ? <p className="error panel-inline-err">{adminErr}</p> : null}
       <div className="row space-between">
-        <h2 className="panel-title">Управление пользователями</h2>
+        <h2 className="panel-title">{t('admin.title')}</h2>
         <button type="button" className="btn-secondary" disabled={adminBusy} onClick={() => void loadAdminUsers()}>
-          Обновить
+          {t('admin.refresh')}
         </button>
       </div>
       <div className="admin-create-form">
-        <h3 className="subh">Создать пользователя (операторы и админ)</h3>
+        <h3 className="subh">{t('admin.createTitle')}</h3>
         <div className="admin-form-grid admin-form-grid--two">
           <label className="field">
-            <span>Логин</span>
+            <span>{t('admin.username')}</span>
             <input type="text" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} />
           </label>
           <label className="field">
-            <span>Пароль</span>
+            <span>{t('admin.password')}</span>
             <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
           </label>
           <label className="field">
-            <span>Роль</span>
+            <span>{t('admin.role')}</span>
             <select value={newRole} onChange={(e) => setNewRole(e.target.value)}>
               {ROLE_OPTIONS_ADMIN.map((o) => (
                 <option key={o.value} value={o.value}>
-                  {o.label}
+                  {roleLabel(o.value)}
                 </option>
               ))}
             </select>
           </label>
           <label className="field">
-            <span>Организация</span>
+            <span>{t('admin.org')}</span>
             <input
               type="text"
               value={newOrg}
               onChange={(e) => setNewOrg(e.target.value)}
-              placeholder="Акимат г. …"
+              placeholder={t('admin.orgPh')}
             />
           </label>
           <label className="field">
-            <span>Город</span>
+            <span>{t('admin.city')}</span>
             <input type="text" value={newCity} onChange={(e) => setNewCity(e.target.value)} />
           </label>
           <label className="field">
-            <span>Регион</span>
+            <span>{t('admin.region')}</span>
             <input type="text" value={newRegion} onChange={(e) => setNewRegion(e.target.value)} />
           </label>
         </div>
@@ -119,18 +130,18 @@ export default function AdminUsersPage() {
           disabled={adminBusy || !newUsername || !newPassword}
           onClick={() => void handleCreateUser()}
         >
-          {adminBusy ? 'Создание…' : 'Создать'}
+          {adminBusy ? t('admin.creating') : t('admin.create')}
         </button>
       </div>
       {adminUsersList.length > 0 ? (
         <table className="data-table" style={{ marginTop: '1.5rem' }}>
           <thead>
             <tr>
-              <th>Логин</th>
-              <th>Роль</th>
-              <th>Организация</th>
-              <th>Город</th>
-              <th>Регион</th>
+              <th>{t('admin.thLogin')}</th>
+              <th>{t('admin.thRole')}</th>
+              <th>{t('admin.thOrg')}</th>
+              <th>{t('admin.thCity')}</th>
+              <th>{t('admin.thRegion')}</th>
               <th />
             </tr>
           </thead>
@@ -139,13 +150,13 @@ export default function AdminUsersPage() {
               <tr key={u.id}>
                 <td>{u.username}</td>
                 <td>
-                  <span className={`role-badge role-${u.role}`} title={u.role}>
-                    {u.role_label_ru ?? u.role}
+                  <span className={`role-badge role-${u.role}`} title={roleLabel(u.role)}>
+                    {roleLabel(u.role)}
                   </span>
                 </td>
-                <td>{u.org || '—'}</td>
-                <td>{u.city || '—'}</td>
-                <td>{u.region || '—'}</td>
+                <td>{u.org || t('common.dash')}</td>
+                <td>{u.city || t('common.dash')}</td>
+                <td>{u.region || t('common.dash')}</td>
                 <td>
                   {u.id !== authUser?.id ? (
                     <button
@@ -154,7 +165,7 @@ export default function AdminUsersPage() {
                       style={{ color: 'var(--error)' }}
                       onClick={() => void handleDeleteUser(u.id)}
                     >
-                      Удалить
+                      {t('common.delete')}
                     </button>
                   ) : null}
                 </td>

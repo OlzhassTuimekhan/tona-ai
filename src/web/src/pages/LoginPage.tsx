@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { canAccessAnalyzeAndRegistry } from '@/constants/roles'
 
 export default function LoginPage() {
+  const { t } = useTranslation()
   const { login } = useAuth()
   const navigate = useNavigate()
   const loc = useLocation()
@@ -35,14 +37,14 @@ export default function LoginPage() {
 
   return (
     <section className="panel login-panel">
-      <h2 className="panel-title">Вход</h2>
+      <h2 className="panel-title">{t('login.title')}</h2>
       <p className="muted" style={{ marginBottom: '1rem' }}>
-        Для акима или администратора — логин и пароль. Граждане могут{' '}
-        <Link to="/register">зарегистрироваться</Link> или пользоваться разделом «Горожанам» без входа.
+        {t('login.leadPrefix')}{' '}
+        <Link to="/register">{t('login.registerLink')}</Link> {t('login.leadSuffix')}
       </p>
       {err ? <p className="error panel-inline-err">{err}</p> : null}
       <label className="field">
-        <span>Логин</span>
+        <span>{t('login.username')}</span>
         <input
           type="text"
           value={username}
@@ -51,7 +53,7 @@ export default function LoginPage() {
         />
       </label>
       <label className="field">
-        <span>Пароль</span>
+        <span>{t('login.password')}</span>
         <input
           type="password"
           value={password}
@@ -63,7 +65,7 @@ export default function LoginPage() {
         />
       </label>
       <button type="button" disabled={busy || !username || !password} onClick={() => void submit()}>
-        {busy ? 'Вход…' : 'Войти'}
+        {busy ? t('login.busy') : t('login.submit')}
       </button>
     </section>
   )

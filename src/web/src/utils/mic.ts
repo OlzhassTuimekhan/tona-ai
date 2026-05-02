@@ -1,3 +1,5 @@
+import i18n from '@/i18n'
+
 type LegacyGetUserMedia = (
   this: Navigator,
   constraints: MediaStreamConstraints,
@@ -53,16 +55,14 @@ export function getRecordingEnvironmentHint(): string | null {
   if (typeof window === 'undefined') return null
   if (!isSecureRecordingContext()) {
     const link = suggestedHttpsRecordingUrl()
-    const tail = link
-      ? ` Откройте эту же страницу по ссылке: ${link}`
-      : ''
-    return `Запись с микрофона в этом браузере доступна только по HTTPS или на localhost. По HTTP с IP-адреса в сети — загрузите файл или откройте сайт с SSL.${tail}`
+    const tail = link ? i18n.t('mic.insecureTail', { link }) : ''
+    return i18n.t('mic.insecureHint', { tail })
   }
   if (!getUserMediaImpl()) {
-    return 'Браузер не отдаёт доступ к микрофону (нет API). Загрузите аудиофайл или обновите браузер.'
+    return i18n.t('mic.noGumApi')
   }
   if (!isMediaRecorderAvailable()) {
-    return 'Запись в этом браузере недоступна (нет MediaRecorder). Используйте загрузку файла.'
+    return i18n.t('mic.noMediaRecorder')
   }
   return null
 }
@@ -81,17 +81,11 @@ export class MicAccessError extends Error {
 }
 
 function throwInsecure(): never {
-  throw new MicAccessError(
-    'Запись с микрофона требует безопасного соединения: HTTPS или localhost. Сейчас страница открыта по незащищённому HTTP (часто так бывает при доступе по IP в локальной сети).',
-    'insecure',
-  )
+  throw new MicAccessError(i18n.t('mic.insecureError'), 'insecure')
 }
 
 function throwNoApi(): never {
-  throw new MicAccessError(
-    'Браузер не поддерживает доступ к микрофону (нет getUserMedia). Обновите браузер или загрузите аудиофайл.',
-    'no_api',
-  )
+  throw new MicAccessError(i18n.t('mic.noApiError'), 'no_api')
 }
 
 export async function requestMicrophoneAudio(
@@ -119,19 +113,19 @@ export function humanizeMicError(err: unknown): string {
     switch (name) {
       case 'NotAllowedError':
       case 'PermissionDeniedError':
-        return 'Доступ к микрофону запрещён. Нажмите на значок замка в адресной строке и разрешите микрофон для этого сайта.'
+        return i18n.t('mic.denied')
       case 'NotFoundError':
       case 'DevicesNotFoundError':
-        return 'Микрофон не найден. Проверьте подключение или выбор устройства ввода в настройках системы.'
+        return i18n.t('mic.notFound')
       case 'NotReadableError':
       case 'TrackStartError':
-        return 'Микрофон занят другим приложением или недоступен. Закройте другие вкладки с записью и повторите.'
+        return i18n.t('mic.busy')
       case 'OverconstrainedError':
-        return 'Выбранные параметры микрофона не поддерживаются. Попробуйте другое устройство.'
+        return i18n.t('mic.overconstrained')
       case 'SecurityError':
-        return 'Браузер заблокировал доступ к микрофону из соображений безопасности (нужен HTTPS или localhost).'
+        return i18n.t('mic.securityBlocked')
       case 'AbortError':
-        return 'Запрос к микрофону прерван. Попробуйте ещё раз.'
+        return i18n.t('mic.aborted')
       default:
         break
     }
@@ -139,7 +133,7 @@ export function humanizeMicError(err: unknown): string {
   if (err instanceof Error && err.message && !err.message.includes('undefined')) {
     return err.message
   }
-  return 'Не удалось получить доступ к микрофону. Проверьте разрешения и попробуйте загрузить файл.'
+  return i18n.t('mic.generic')
 }
 
 export function describeRecordingError(err: unknown): string {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 import {
   addPublicObservation,
@@ -22,13 +23,8 @@ import {
 } from '@/utils/mic'
 import { pickRecorderMime } from '@/utils/recorder'
 
-const FEEDBACK_LABELS_DEFAULT: FeedbackOptionLabels = {
-  was_there: 'Я был на заседании / слышал своими ушами',
-  work_done: 'Вижу в жизни: работу сделали',
-  dispute: 'Здесь неточность или не так',
-}
-
 export default function PublicDetailPage() {
+  const { t, i18n } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const [publicDoc, setPublicDoc] = useState<PublicSessionView | null>(null)
   const [publicErr, setPublicErr] = useState<string | null>(null)
@@ -53,7 +49,16 @@ export default function PublicDetailPage() {
   const [feedbackLabels, setFeedbackLabels] = useState<FeedbackOptionLabels | null>(null)
   const [feedbackLabelsLoading, setFeedbackLabelsLoading] = useState(false)
 
-  const micEnvHint = useMemo(() => getRecordingEnvironmentHint(), [])
+  const feedbackDefaults = useMemo(
+    (): FeedbackOptionLabels => ({
+      was_there: t('publicDetail.feedbackDefault.was_there'),
+      work_done: t('publicDetail.feedbackDefault.work_done'),
+      dispute: t('publicDetail.feedbackDefault.dispute'),
+    }),
+    [t],
+  )
+
+  const micEnvHint = useMemo(() => getRecordingEnvironmentHint(), [i18n.language])
 
   useEffect(() => {
     if (!id) return
@@ -129,9 +134,7 @@ export default function PublicDetailPage() {
     setObsRecSec(0)
     try {
       if (!isMediaRecorderAvailable()) {
-        setPublicErr(
-          'В этом браузере недоступна запись голоса (нет MediaRecorder). Обновите браузер или откройте сайт с другого устройства.',
-        )
+        setPublicErr(t('publicDetail.micBlocked'))
         return
       }
       const stream = await requestMicrophoneAudio({
@@ -167,7 +170,9 @@ export default function PublicDetailPage() {
       const mime = rec.mimeType || 'audio/webm'
       const blob = new Blob(obsChunksRef.current, { type: mime })
       setObsVoiceBlob(blob)
-      setObsVoiceLabel(`Запись есть (${(blob.size / 1024).toFixed(0)} КБ)`)
+      setObsVoiceLabel(
+        t('publicDetail.recordingKb', { kb: Math.round(blob.size / 1024).toString() }),
+      )
       stream?.getTracks().forEach((t) => t.stop())
       obsStreamRef.current = null
       obsRecRef.current = null
@@ -183,7 +188,7 @@ export default function PublicDetailPage() {
     try {
       const idx: number | null = obsCommitTarget === 'all' ? null : obsCommitTarget
       if (!obsVoiceBlob || obsVoiceBlob.size < 100) {
-        throw new Error('Запишите голосом фразу «Я не робот» — кнопка ниже.')
+        throw new Error(t('publicDetail.robotPhraseError'))
       }
       const mime = obsVoiceBlob.type || 'audio/webm'
       const ext = mime.includes('webm')
@@ -236,34 +241,41 @@ export default function PublicDetailPage() {
     ? (publicDoc!.observations as Record<string, unknown>[])
     : []
 
-  if (!id) {
-    return <p className="muted">Нет id</p>
+  const obsTypeLabel = (ot: unknown) => {
+    if (ot === 'was_there') return t('publicDetail.obsWasThere')
+    if (ot === 'work_done') return t('publicDetail.obsWorkDone')
+    if (ot === 'dispute') return t('publicDetail.obsDispute')
+    return String(ot)
   }
+
+  if (!id) {
+    return <p className="muted">{t('common.noId')}</p>
+  }
+
+  const lbl = feedbackLabels ?? feedbackDefaults
 
   return (
     <section className="panel panel-citizen public-detail">
       {publicErr ? <p className="error panel-inline-err">{publicErr}</p> : null}
       <div className="row space-between citizen-toolbar">
         <Link to="/public" className="btn-text">
-          ← Назад к списку
+          {t('common.backToList')}
         </Link>
       </div>
       {!publicDoc ? (
-        <p className="muted">Загрузка…</p>
+        <p className="muted">{t('common.loading')}</p>
       ) : (
         <div className="public-detail-layout">
           <div className="public-detail-main">
             <h2 className="panel-title panel-title-plain">{publicDoc.title}</h2>
             {publicDoc.public_org ? <p className="public-lead">{publicDoc.public_org}</p> : null}
-            <p className="summary-text citizen-summary">{publicDoc.summary || '—'}</p>
+            <p className="summary-text citizen-summary">{publicDoc.summary || t('common.dash')}</p>
             {(publicDoc.playback_url ||
               (Array.isArray(publicDoc.transcript_word_segments) && publicDoc.transcript_word_segments.length > 0) ||
               (Array.isArray(publicDoc.transcript_segments) && publicDoc.transcript_segments.length > 0)) && (
               <>
-                <h3 className="subh subh-plain">Запись заседания</h3>
-                <p className="muted small">
-                  Нажмите на фрагмент или «В запись» у пункта — воспроизведение с нужного момента.
-                </p>
+                <h3 className="subh subh-plain">{t('publicDetail.sessionRecording')}</h3>
+                <p className="muted small">{t('publicDetail.sessionRecordingHint')}</p>
                 <DiarizedTranscriptPlayer
                   audioRef={publicAudioRef}
                   playbackSrc={
@@ -284,21 +296,22 @@ export default function PublicDetailPage() {
               </>
             )}
             <details className="tech-fold">
-              <summary>Служебный номер карточки</summary>
+              <summary>{t('publicDetail.cardId')}</summary>
               <p className="meta">
                 <code>{publicDoc.id}</code>
               </p>
             </details>
-            <h3 className="subh subh-plain">Поручения по отдельности</h3>
+            <h3 className="subh subh-plain">{t('publicDetail.perItem')}</h3>
             {(publicDoc.deadlines_overdue ?? 0) > 0 ? (
               <p className="overdue-summary">
-                {publicDoc.deadlines_overdue} из {publicCommitments.length} поручений просрочено
+                {t('publicDetail.overdueSummary', {
+                  overdue: String(publicDoc.deadlines_overdue),
+                  total: String(publicCommitments.length),
+                })}
               </p>
             ) : null}
             {publicCommitments.length === 0 ? (
-              <p className="muted">
-                В этой записи нет разбивки на пункты — отзыв будет только «ко всему заседанию».
-              </p>
+              <p className="muted">{t('publicDetail.noCommitmentSplit')}</p>
             ) : (
               <div className="commitment-cards">
                 {publicCommitments.map((c, i) => (
@@ -314,17 +327,17 @@ export default function PublicDetailPage() {
                     id={`commit-${i}`}
                   >
                     <div className="commitment-card-head">
-                      <span className="commitment-num">Пункт {i + 1}</span>
+                      <span className="commitment-num">{t('publicDetail.itemN', { n: i + 1 })}</span>
                       {typeof c.deadline_status === 'string' && c.deadline_status !== 'no_deadline' ? (
                         <DeadlineBadge status={c.deadline_status as string} deadline={String(c.deadline ?? '')} />
                       ) : null}
                     </div>
-                    <p className="commitment-body">{String(c.description ?? '—')}</p>
+                    <p className="commitment-body">{String(c.description ?? t('common.dash'))}</p>
                     <FulfillmentBadge
                       fulfillment={String(c.fulfillment_status ?? 'pending')}
                       deadlineStatus={String(c.deadline_status ?? '')}
                     />
-                    <p className="commitment-meta small">{String(c.responsible ?? '—')}</p>
+                    <p className="commitment-meta small">{String(c.responsible ?? t('common.dash'))}</p>
                     <div className="commitment-card-actions">
                       {typeof publicDoc.playback_url === 'string' &&
                       publicDoc.playback_url.trim() &&
@@ -335,7 +348,7 @@ export default function PublicDetailPage() {
                           className="btn-secondary btn-seek-inline"
                           onClick={() => seekPublicAudio(Number(c.timestamp_start))}
                         >
-                          В запись ▶
+                          {t('publicDetail.seekRecording')}
                         </button>
                       ) : null}
                       <button
@@ -351,7 +364,7 @@ export default function PublicDetailPage() {
                           }, 0)
                         }}
                       >
-                        Мой отзыв к этому пункту
+                        {t('publicDetail.myFeedbackThis')}
                       </button>
                     </div>
                   </article>
@@ -362,51 +375,53 @@ export default function PublicDetailPage() {
               <div className="session-rating-box">
                 <RatingBadge rating={publicDoc.rating} size="large" />
                 <span className="rating-stats">
-                  Отзывов: {publicDoc.rating.total} · Положительных: {publicDoc.rating.positive} · Оспариваний:{' '}
-                  {publicDoc.rating.negative}
+                  {t('publicDetail.ratingStats', {
+                    total: publicDoc.rating.total,
+                    positive: publicDoc.rating.positive,
+                    negative: publicDoc.rating.negative,
+                  })}
                 </span>
               </div>
             ) : null}
 
-            <h3 className="subh subh-plain">Что уже написали люди</h3>
+            <h3 className="subh subh-plain">{t('publicDetail.whatPeopleWrote')}</h3>
             {publicObs.length === 0 ? (
-              <p className="muted">Пока никто не отметился.</p>
+              <p className="muted">{t('publicDetail.noObsYet')}</p>
             ) : (
               <ul className="obs-list">
                 {publicObs.map((o, i) => (
                   <li key={String(o.id ?? `obs-${i}`)} className={o.has_photo ? 'obs-item obs-with-photo' : 'obs-item'}>
-                    {!!o.has_photo && <span className="obs-photo-badge">С фото</span>}
+                    {!!o.has_photo && <span className="obs-photo-badge">{t('publicDetail.withPhoto')}</span>}
                     <span className="muted nowrap">
                       {o.created_at ? new Date(String(o.created_at)).toLocaleString() : ''}
                     </span>{' '}
-                    <strong>
-                      {o.observation_type === 'was_there'
-                        ? 'На встрече / слышал'
-                        : o.observation_type === 'work_done'
-                          ? 'Работа сделана'
-                          : o.observation_type === 'dispute'
-                            ? 'Оспаривание'
-                            : String(o.observation_type)}
-                    </strong>
+                    <strong>{obsTypeLabel(o.observation_type)}</strong>
                     {o.observer_display ? (
                       <span className="muted"> · {String(o.observer_display)}</span>
                     ) : null}
                     {o.commitment_index == null ? (
-                      <span className="obs-scope"> · ко всему заседанию</span>
+                      <span className="obs-scope">{t('publicDetail.obsScopeAll')}</span>
                     ) : publicCommitments[Number(o.commitment_index)] ? (
                       <span className="obs-scope">
-                        {' '}
-                        · пункт {Number(o.commitment_index) + 1}:{' '}
-                        {String(publicCommitments[Number(o.commitment_index)]?.description ?? '')}
+                        {t('publicDetail.obsScopeItem', {
+                          n: Number(o.commitment_index) + 1,
+                          text: String(publicCommitments[Number(o.commitment_index)]?.description ?? ''),
+                        })}
                       </span>
                     ) : (
-                      <span className="obs-scope"> · пункт №{String(o.commitment_index)}</span>
+                      <span className="obs-scope">
+                        {t('publicDetail.obsScopeItemNum', { n: String(o.commitment_index) })}
+                      </span>
                     )}
                     {o.note ? <> — {String(o.note)}</> : null}
                     {o.photo_url ? (
                       <div className="obs-photo-block">
                         <a href={String(o.photo_url)} target="_blank" rel="noreferrer">
-                          <img src={String(o.photo_url)} alt="Фото к отзыву" className="obs-photo-thumb" />
+                          <img
+                            src={String(o.photo_url)}
+                            alt={t('publicDetail.photoAlt')}
+                            className="obs-photo-thumb"
+                          />
                         </a>
                       </div>
                     ) : null}
@@ -416,155 +431,156 @@ export default function PublicDetailPage() {
             )}
           </div>
 
-          <aside className="public-detail-aside" aria-label="Форма ответа">
+          <aside className="public-detail-aside" aria-label={t('publicDetail.yourReply')}>
             <h3 className="subh subh-plain public-detail-aside-title" id="citizen-reply">
-              Ваш ответ
+              {t('publicDetail.yourReply')}
             </h3>
             <div className="obs-form">
-            <input
-              type="text"
-              name="website"
-              className="hp-field"
-              tabIndex={-1}
-              autoComplete="off"
-              value={obsHp}
-              onChange={(e) => setObsHp(e.target.value)}
-              aria-hidden
-            />
-            <p className="field-hint field-hint-strong">
-              Сначала выберите, к чему относится отзыв — так не путают разные поручения.
-            </p>
-            <div className="target-picker" role="group" aria-label="К какому поручению относится отзыв">
-              <button
-                type="button"
-                className={obsCommitTarget === 'all' ? 'target-chip active' : 'target-chip'}
-                onClick={() => setObsCommitTarget('all')}
-              >
-                Ко всему заседанию целиком
-              </button>
-              {publicCommitments.map((c, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className={obsCommitTarget === i ? 'target-chip active' : 'target-chip'}
-                  onClick={() => setObsCommitTarget(i)}
-                >
-                  Пункт {i + 1}: {String(c.description ?? '')}
-                </button>
-              ))}
-            </div>
-            <p className="field-hint">Что вы хотите сказать по выбранному</p>
-            {feedbackLabelsLoading ? (
-              <p className="muted small" style={{ marginBottom: '0.35rem' }}>
-                Подбираем формулировки под выбранный пункт…
-              </p>
-            ) : null}
-            <div className="choice-grid" role="group" aria-label="Тип ответа">
-              <button
-                type="button"
-                className={obsType === 'was_there' ? 'choice-btn active' : 'choice-btn'}
-                onClick={() => setObsType('was_there')}
-              >
-                {(feedbackLabels ?? FEEDBACK_LABELS_DEFAULT).was_there}
-              </button>
-              <button
-                type="button"
-                className={obsType === 'work_done' ? 'choice-btn active' : 'choice-btn'}
-                onClick={() => setObsType('work_done')}
-              >
-                {(feedbackLabels ?? FEEDBACK_LABELS_DEFAULT).work_done}
-              </button>
-              <button
-                type="button"
-                className={obsType === 'dispute' ? 'choice-btn active' : 'choice-btn'}
-                onClick={() => setObsType('dispute')}
-              >
-                {(feedbackLabels ?? FEEDBACK_LABELS_DEFAULT).dispute}
-              </button>
-            </div>
-            <label className="field field-plain">
-              <span>Можно коротко пояснить</span>
-              <textarea
-                value={obsNote}
-                onChange={(e) => setObsNote(e.target.value)}
-                rows={3}
-                maxLength={2000}
-                placeholder="Необязательно"
+              <input
+                type="text"
+                name="website"
+                className="hp-field"
+                tabIndex={-1}
+                autoComplete="off"
+                value={obsHp}
+                onChange={(e) => setObsHp(e.target.value)}
+                aria-hidden
               />
-            </label>
-            <div className="voice-card">
-              <p className="voice-title">Скажите в микрофон</p>
-              <p className="voice-phrase">«Я не робот»</p>
-              <p className="muted small">Запись уйдёт на проверку — так мы отсекаем автоматические заявки.</p>
-              {micEnvHint ? (
-                <p className="muted small" style={{ marginTop: '0.5rem' }}>
-                  {micEnvHint}
+              <p className="field-hint field-hint-strong">{t('publicDetail.pickTarget')}</p>
+              <div className="target-picker" role="group" aria-label={t('publicDetail.targetGroup')}>
+                <button
+                  type="button"
+                  className={obsCommitTarget === 'all' ? 'target-chip active' : 'target-chip'}
+                  onClick={() => setObsCommitTarget('all')}
+                >
+                  {t('publicDetail.wholeSession')}
+                </button>
+                {publicCommitments.map((c, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className={obsCommitTarget === i ? 'target-chip active' : 'target-chip'}
+                    onClick={() => setObsCommitTarget(i)}
+                  >
+                    {t('publicDetail.itemPick', {
+                      n: i + 1,
+                      text: String(c.description ?? ''),
+                    })}
+                  </button>
+                ))}
+              </div>
+              <p className="field-hint">{t('publicDetail.sayAboutSelection')}</p>
+              {feedbackLabelsLoading ? (
+                <p className="muted small" style={{ marginBottom: '0.35rem' }}>
+                  {t('publicDetail.pickingPhrases')}
                 </p>
               ) : null}
-              <div className="voice-row">
-                {!obsRecording ? (
-                  <button
-                    type="button"
-                    className="btn-record"
-                    disabled={obsSubmitting || !!micEnvHint}
-                    title={micEnvHint ?? undefined}
-                    onClick={() => void startObsVoice()}
-                  >
-                    Записать голос
-                  </button>
-                ) : (
-                  <button type="button" className="btn-record-stop" disabled={obsSubmitting} onClick={stopObsVoice}>
-                    Стоп ({obsRecSec} сек)
-                  </button>
-                )}
-                {obsRecording ? <span className="recording-dot" aria-hidden /> : null}
+              <div className="choice-grid" role="group" aria-label={t('publicDetail.responseType')}>
+                <button
+                  type="button"
+                  className={obsType === 'was_there' ? 'choice-btn active' : 'choice-btn'}
+                  onClick={() => setObsType('was_there')}
+                >
+                  {lbl.was_there}
+                </button>
+                <button
+                  type="button"
+                  className={obsType === 'work_done' ? 'choice-btn active' : 'choice-btn'}
+                  onClick={() => setObsType('work_done')}
+                >
+                  {lbl.work_done}
+                </button>
+                <button
+                  type="button"
+                  className={obsType === 'dispute' ? 'choice-btn active' : 'choice-btn'}
+                  onClick={() => setObsType('dispute')}
+                >
+                  {lbl.dispute}
+                </button>
               </div>
-              {obsVoiceLabel ? (
-                <p className="voice-ok">{obsVoiceLabel}</p>
-              ) : (
-                <p className="muted small">Без записи отправить нельзя.</p>
-              )}
-            </div>
-            <button
-              type="button"
-              className="btn-block btn-send"
-              disabled={obsSubmitting || !obsVoiceBlob || obsVoiceBlob.size < 100}
-              onClick={() => void submitObservation()}
-            >
-              {obsSubmitting ? 'Отправляем…' : 'Отправить'}
-            </button>
-            <div className="photo-upload-block">
               <label className="field field-plain">
-                <span>Прикрепить фото (необязательно)</span>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] ?? null
-                    setObsPhotoFile(f)
-                    if (obsPhotoPreview) URL.revokeObjectURL(obsPhotoPreview)
-                    setObsPhotoPreview(f ? URL.createObjectURL(f) : null)
-                  }}
+                <span>{t('publicDetail.noteLabel')}</span>
+                <textarea
+                  value={obsNote}
+                  onChange={(e) => setObsNote(e.target.value)}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder={t('publicDetail.notePh')}
                 />
               </label>
-              {obsPhotoPreview ? (
-                <div className="photo-preview-wrap">
-                  <img src={obsPhotoPreview} alt="Превью" className="photo-preview" />
-                  <button
-                    type="button"
-                    className="btn-remove-photo"
-                    onClick={() => {
-                      if (obsPhotoPreview) URL.revokeObjectURL(obsPhotoPreview)
-                      setObsPhotoFile(null)
-                      setObsPhotoPreview(null)
-                    }}
-                  >
-                    Убрать фото
-                  </button>
+              <div className="voice-card">
+                <p className="voice-title">{t('publicDetail.sayInMic')}</p>
+                <p className="voice-phrase">{t('publicDetail.robotPhrase')}</p>
+                <p className="muted small">{t('publicDetail.voiceNote')}</p>
+                {micEnvHint ? (
+                  <p className="muted small" style={{ marginTop: '0.5rem' }}>
+                    {micEnvHint}
+                  </p>
+                ) : null}
+                <div className="voice-row">
+                  {!obsRecording ? (
+                    <button
+                      type="button"
+                      className="btn-record"
+                      disabled={obsSubmitting || !!micEnvHint}
+                      title={micEnvHint ?? undefined}
+                      onClick={() => void startObsVoice()}
+                    >
+                      {t('publicDetail.recordVoice')}
+                    </button>
+                  ) : (
+                    <button type="button" className="btn-record-stop" disabled={obsSubmitting} onClick={stopObsVoice}>
+                      {t('publicDetail.stopSec', { sec: obsRecSec })}
+                    </button>
+                  )}
+                  {obsRecording ? <span className="recording-dot" aria-hidden /> : null}
                 </div>
-              ) : null}
+                {obsVoiceLabel ? (
+                  <p className="voice-ok">{obsVoiceLabel}</p>
+                ) : (
+                  <p className="muted small">{t('publicDetail.needVoice')}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                className="btn-block btn-send"
+                disabled={obsSubmitting || !obsVoiceBlob || obsVoiceBlob.size < 100}
+                onClick={() => void submitObservation()}
+              >
+                {obsSubmitting ? t('common.sending') : t('publicDetail.submit')}
+              </button>
+              <div className="photo-upload-block">
+                <label className="field field-plain">
+                  <span>{t('publicDetail.attachPhoto')}</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null
+                      setObsPhotoFile(f)
+                      if (obsPhotoPreview) URL.revokeObjectURL(obsPhotoPreview)
+                      setObsPhotoPreview(f ? URL.createObjectURL(f) : null)
+                    }}
+                  />
+                </label>
+                {obsPhotoPreview ? (
+                  <div className="photo-preview-wrap">
+                    <img src={obsPhotoPreview} alt={t('publicDetail.previewAlt')} className="photo-preview" />
+                    <button
+                      type="button"
+                      className="btn-remove-photo"
+                      onClick={() => {
+                        if (obsPhotoPreview) URL.revokeObjectURL(obsPhotoPreview)
+                        setObsPhotoFile(null)
+                        setObsPhotoPreview(null)
+                      }}
+                    >
+                      {t('publicDetail.removePhoto')}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
-          </div>
           </aside>
         </div>
       )}

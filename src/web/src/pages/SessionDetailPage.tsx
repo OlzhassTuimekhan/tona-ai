@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 import {
   getRegistrySession,
@@ -17,6 +18,7 @@ import { CommitmentsEvidenceTable, DeadlineBadge, truncateText } from '@/compone
 import { useAuth } from '@/context/AuthContext'
 
 export default function SessionDetailPage() {
+  const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
@@ -95,7 +97,7 @@ export default function SessionDetailPage() {
   )
 
   if (!id) {
-    return <p className="muted">Нет id</p>
+    return <p className="muted">{t('common.noId')}</p>
   }
 
   return (
@@ -103,11 +105,11 @@ export default function SessionDetailPage() {
       {regErr ? <p className="error panel-inline-err">{regErr}</p> : null}
       <div className="row space-between">
         <Link to="/registry" className="btn-link">
-          ← К списку
+          {t('session.backList')}
         </Link>
       </div>
       {!sessionDoc ? (
-        <p className="muted">Загрузка карточки…</p>
+        <p className="muted">{t('session.loadingCard')}</p>
       ) : (
         <>
           <h2 className="panel-title">{sessionDoc.title}</h2>
@@ -115,13 +117,11 @@ export default function SessionDetailPage() {
             {new Date(sessionDoc.created_at).toLocaleDateString()} · {sessionDoc.analysis_type}
             {sessionDoc.public_org ? ` · ${sessionDoc.public_org}` : ''}
           </p>
-          <p className="summary-text">{(payload?.summary as string) || '—'}</p>
+          <p className="summary-text">{(payload?.summary as string) || t('common.dash')}</p>
           {(playbackSrc || transcriptSegments.length > 0) && (
             <>
-              <h3 className="subh">Запись и таймкоды (диаризация)</h3>
-              <p className="muted small">
-                Клик по фрагменту или по ▶ у поручения с таймкодом — переход к моменту в аудио.
-              </p>
+              <h3 className="subh">{t('session.audioDiarization')}</h3>
+              <p className="muted small">{t('session.audioHint')}</p>
               <DiarizedTranscriptPlayer
                 audioRef={audioRef}
                 playbackSrc={playbackSrc}
@@ -131,15 +131,15 @@ export default function SessionDetailPage() {
               />
             </>
           )}
-          <h3 className="subh">Поручения и доказательства</h3>
+          <h3 className="subh">{t('session.commitmentsEvidence')}</h3>
           <CommitmentsEvidenceTable
             commitments={commitments}
-            emptyLabel="Нет блока commitments."
+            emptyLabel={t('session.noCommitmentsBlock')}
             onSeek={playbackSrc ? seekTo : undefined}
           />
           {commitments.length > 0 ? (
             <div className="fulfill-controls">
-              <h3 className="subh">Статус выполнения</h3>
+              <h3 className="subh">{t('session.fulfillment')}</h3>
               <div className="fulfill-grid">
                 {commitments.map((c, i) => {
                   const fs = String(c.fulfillment_status ?? 'pending')
@@ -178,14 +178,14 @@ export default function SessionDetailPage() {
                               .finally(() => setRegBusy(false))
                           }}
                         >
-                          Выполнено
+                          {t('session.fulfilledBtn')}
                         </button>
                       ) : (
                         <button
                           type="button"
                           className={isOverdue && !isAdmin ? 'btn-sm btn-disabled-overdue' : 'btn-sm btn-secondary'}
                           disabled={regBusy || !canFulfill}
-                          title={!canFulfill ? 'Просроченное поручение может отметить только админ' : ''}
+                          title={!canFulfill ? t('session.overdueTitle') : ''}
                           onClick={() => {
                             if (!id || !canFulfill) return
                             setRegBusy(true)
@@ -196,7 +196,7 @@ export default function SessionDetailPage() {
                               .finally(() => setRegBusy(false))
                           }}
                         >
-                          {isOverdue && !isAdmin ? 'Просрочено' : 'Отметить выполненным'}
+                          {isOverdue && !isAdmin ? t('session.overdueBlocked') : t('session.markFulfilled')}
                         </button>
                       )}
                     </div>
@@ -205,7 +205,7 @@ export default function SessionDetailPage() {
               </div>
             </div>
           ) : null}
-          <h3 className="subh">Публикация для горожан</h3>
+          <h3 className="subh">{t('session.publication')}</h3>
           <div className="publish-box">
             <label className="field check-row">
               <input
@@ -213,24 +213,24 @@ export default function SessionDetailPage() {
                 checked={pubPublished}
                 onChange={(e) => setPubPublished(e.target.checked)}
               />
-              <span>Показать всем на вкладке «Горожанам» (без входа)</span>
+              <span>{t('session.pubCheckbox')}</span>
             </label>
             <label className="field">
-              <span>Орган / контекст</span>
+              <span>{t('session.pubOrg')}</span>
               <input
                 type="text"
                 value={pubOrg}
                 onChange={(e) => setPubOrg(e.target.value)}
-                placeholder="Например: Акимат г. Талдыкорган"
+                placeholder={t('session.pubOrgPh')}
                 maxLength={200}
               />
             </label>
             <button type="button" disabled={pubSaving} onClick={() => void applyPublish()}>
-              {pubSaving ? 'Сохранение…' : 'Сохранить публикацию'}
+              {pubSaving ? t('session.savingPub') : t('session.savePublication')}
             </button>
             {sessionDoc.published ? (
               <p className="muted small">
-                Сейчас видно всем. Отметок горожан:{' '}
+                {t('session.pubVisible')}{' '}
                 {Array.isArray(sessionDoc.observations) ? sessionDoc.observations.length : 0}
               </p>
             ) : null}

@@ -1,11 +1,13 @@
+import { useTranslation } from 'react-i18next'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { canAccessAnalyzeAndRegistry } from '@/constants/roles'
 
 export default function HomeRedirect() {
+  const { t } = useTranslation()
   const { user, loading } = useAuth()
   if (loading) {
-    return <div className="auth-loading">Загрузка…</div>
+    return <div className="auth-loading">{t('auth.loading')}</div>
   }
   if (!user) {
     return <Navigate to="/public" replace />
